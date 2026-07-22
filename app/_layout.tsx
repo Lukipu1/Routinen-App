@@ -1,3 +1,6 @@
+// Side-effect import must run first so gesture-handler initialises before the
+// navigator; it is intentionally separate from the named import below.
+// eslint-disable-next-line import/no-duplicates
 import 'react-native-gesture-handler';
 
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -5,6 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+// eslint-disable-next-line import/no-duplicates
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 

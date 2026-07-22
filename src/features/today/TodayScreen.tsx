@@ -30,7 +30,6 @@ function DayProgressCard({
   total: number;
   fraction: number;
 }): React.ReactElement {
-  const theme = useTheme();
   return (
     <Card elevated style={styles.progressCard}>
       <ProgressRing progress={fraction} size={76} strokeWidth={9}>

@@ -2,11 +2,10 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { resolveRoutineColor } from '../../constants/colors';
-import { summariseWeekdays } from '../../constants/weekdays';
+import { WEEKDAY_LONG, summariseWeekdays } from '../../constants/weekdays';
 import type { ISODateString, WeekStart } from '../../types/common';
 import type { Routine } from '../../types/routine';
 import { addDaysISO, parseISODate, todayISO } from '../../utils/datetime';
-import { WEEKDAY_LONG } from '../../constants/weekdays';
 import { formatDuration } from '../../utils/format';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from '../common/AppText';

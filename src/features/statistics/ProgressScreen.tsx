@@ -28,7 +28,6 @@ function StatTile({
   label: string;
   color: string;
 }): React.ReactElement {
-  const theme = useTheme();
   return (
     <Card elevated style={styles.tile}>
       <Icon name={icon} size={22} color={color} />

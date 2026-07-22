@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 // Global test setup: mock native-only modules so pure logic and light
 // component tests run under Node without a device.
 
@@ -21,6 +20,37 @@ jest.mock('lucide-react-native', () => {
       },
     },
   );
+});
+
+// --- Reanimated --------------------------------------------------------------
+// Reanimated 4's own mock still pulls in the native worklets module, which does
+// not exist under Node. Provide a minimal, self-contained stub of the APIs the
+// components use so animated components render as plain views in tests.
+jest.mock('react-native-reanimated', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const AnimatedView = React.forwardRef((props: Record<string, unknown>, ref: unknown) =>
+    React.createElement(View, { ...props, ref }),
+  );
+  AnimatedView.displayName = 'AnimatedView';
+  const createAnimatedComponent = (Component: unknown) => Component;
+  const entry = { duration: () => entry, delay: () => entry, springify: () => entry };
+  const runFn = (fn: unknown) => (typeof fn === 'function' ? (fn as () => unknown)() : {});
+  return {
+    __esModule: true,
+    default: { View: AnimatedView, createAnimatedComponent },
+    View: AnimatedView,
+    createAnimatedComponent,
+    useSharedValue: (initial: unknown) => ({ value: initial }),
+    useAnimatedStyle: runFn,
+    useAnimatedProps: runFn,
+    withTiming: (value: unknown) => value,
+    withSpring: (value: unknown) => value,
+    withDelay: (_delay: unknown, value: unknown) => value,
+    FadeIn: entry,
+    FadeInDown: entry,
+    FadeOutDown: entry,
+  };
 });
 
 // --- Haptics -----------------------------------------------------------------

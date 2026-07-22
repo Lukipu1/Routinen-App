@@ -12,7 +12,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '../../components/common/AppText';
 import { PrimaryButton, SecondaryButton, IconButton } from '../../components/common/Buttons';
-import { DurationPicker } from '../../components/common/DurationPicker';
 import { Icon } from '../../components/common/Icon';
 import { PressableScale } from '../../components/common/PressableScale';
 import { SectionHeader } from '../../components/common/SectionHeader';
@@ -28,7 +27,7 @@ import { resolveRoutineColor } from '../../constants/colors';
 import { REMINDER_LEAD_OPTIONS } from '../../constants/durations';
 import { CATEGORY_META } from '../../constants/categories';
 import { summariseWeekdays } from '../../constants/weekdays';
-import { ROUTINE_CATEGORIES, type RoutineCategory } from '../../types/category';
+import { ROUTINE_CATEGORIES } from '../../types/category';
 import {
   addStep,
   createEmptyStepDraft,

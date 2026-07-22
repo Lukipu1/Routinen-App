@@ -10,7 +10,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -45,6 +45,8 @@
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.2",
     "babel-preset-expo": "~57.0.3",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^57.0.0",
     "jest": "^29.7.0",
     "jest-expo": "~57.0.2",
     "react-test-renderer": "19.2.3",

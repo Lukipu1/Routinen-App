@@ -10,7 +10,7 @@ interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   title?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 /**

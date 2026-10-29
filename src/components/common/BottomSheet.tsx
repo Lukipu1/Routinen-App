@@ -40,6 +40,7 @@ export function BottomSheet({
           style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}
           onPress={onClose}
           accessibilityLabel="Schließen"
+          accessibilityRole="button"
         />
         <View
           style={[
@@ -55,7 +56,7 @@ export function BottomSheet({
           <View style={[styles.handle, { backgroundColor: theme.colors.separator }]} />
           <View style={[styles.header, { paddingHorizontal: theme.spacing.base }]}>
             <AppText variant="headline">{title ?? ''}</AppText>
-            <IconButton iconName="close" accessibilityLabel="Schließen" onPress={onClose} size={32} />
+            <IconButton iconName="close" accessibilityLabel="Schließen" onPress={onClose} size={36} />
           </View>
           <View style={{ paddingHorizontal: theme.spacing.base }}>{children}</View>
         </View>

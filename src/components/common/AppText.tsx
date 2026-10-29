@@ -15,6 +15,19 @@ interface AppTextProps extends TextProps {
 }
 
 /**
+ * Dynamic Type is honoured, but very large sizes are capped per variant so
+ * dense labels (badges, timestamps) and the big countdown don't blow their
+ * fixed-size containers. Body copy still scales generously.
+ */
+const MAX_SCALE: Partial<Record<TypographyToken, number>> = {
+  display: 1.3,
+  largeTitle: 1.5,
+  title: 1.6,
+  caption: 1.6,
+};
+const DEFAULT_MAX_SCALE = 2;
+
+/**
  * The single text primitive. All copy flows through here so typography and
  * colour always come from theme tokens (never hard-coded), and dynamic type
  * scaling stays consistent.
@@ -26,11 +39,13 @@ export function AppText({
   center,
   style,
   children,
+  maxFontSizeMultiplier,
   ...rest
 }: AppTextProps): React.ReactElement {
   const theme = useTheme();
   return (
     <Text
+      maxFontSizeMultiplier={maxFontSizeMultiplier ?? MAX_SCALE[variant] ?? DEFAULT_MAX_SCALE}
       style={[
         theme.typography[variant],
         { color: theme.colors[color] },

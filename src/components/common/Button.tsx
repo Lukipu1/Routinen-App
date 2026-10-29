@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { onColorForHex } from '../../constants/colors';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
@@ -45,7 +46,8 @@ export function Button({
     destructive: theme.colors.error,
   };
   const textColorToken: Record<ButtonVariant, string> = {
-    primary: theme.colors.onAccent,
+    // A routine colour as accent may need dark text to stay readable.
+    primary: accentColor ? onColorForHex(accentColor) : theme.colors.onAccent,
     secondary: theme.colors.primaryText,
     ghost: accent,
     destructive: theme.colors.onAccent,

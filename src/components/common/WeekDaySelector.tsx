@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { WEEKDAY_LONG, WEEKDAY_SHORT, orderedWeekdays } from '../../constants/weekdays';
 import type { Weekday, WeekStart } from '../../types/common';
+import { onColorForHex } from '../../constants/colors';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from './AppText';
 import { PressableScale } from './PressableScale';
@@ -43,8 +44,8 @@ export function WeekDaySelector({
             onPress={() => toggle(day)}
             haptic="selection"
             scaleTo={0.9}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isSelected }}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isSelected }}
             accessibilityLabel={WEEKDAY_LONG[day]}
             style={[
               styles.day,
@@ -56,7 +57,7 @@ export function WeekDaySelector({
             <AppText
               variant="callout"
               weight="600"
-              style={{ color: isSelected ? theme.colors.onAccent : theme.colors.primaryText }}
+              style={{ color: isSelected ? onColorForHex(accent) : theme.colors.primaryText }}
             >
               {WEEKDAY_SHORT[day]}
             </AppText>

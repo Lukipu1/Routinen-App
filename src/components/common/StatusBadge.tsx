@@ -17,10 +17,10 @@ interface StatusConfig {
 const STATUS_CONFIG: Record<TimelineStatus, StatusConfig> = {
   planned: { label: 'Geplant', colorToken: 'secondaryText', icon: 'clock' },
   ready: { label: 'Jetzt', colorToken: 'accent', icon: 'play' },
-  overdue: { label: 'Überfällig', colorToken: 'warning', icon: 'clock' },
+  overdue: { label: 'Überfällig', colorToken: 'warningText', icon: 'clock' },
   active: { label: 'Läuft', colorToken: 'accent', icon: 'play' },
-  paused: { label: 'Pausiert', colorToken: 'warning', icon: 'pause' },
-  completed: { label: 'Erledigt', colorToken: 'success', icon: 'check' },
+  paused: { label: 'Pausiert', colorToken: 'warningText', icon: 'pause' },
+  completed: { label: 'Erledigt', colorToken: 'successText', icon: 'check' },
   abandoned: { label: 'Abgebrochen', colorToken: 'secondaryText', icon: 'close' },
   skipped: { label: 'Übersprungen', colorToken: 'secondaryText', icon: 'skip' },
   missed: { label: 'Verpasst', colorToken: 'secondaryText', icon: 'minus' },

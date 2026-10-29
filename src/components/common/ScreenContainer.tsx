@@ -21,6 +21,9 @@ interface ScreenContainerProps {
   contentStyle?: StyleProp<ViewStyle>;
 }
 
+/** Cards and buttons stop stretching beyond this on tablets / landscape. */
+export const CONTENT_MAX_WIDTH = 640;
+
 /**
  * Standard screen wrapper: applies the themed background, safe-area insets, and
  * optional scrolling / keyboard avoidance so every screen behaves consistently.
@@ -39,14 +42,14 @@ export function ScreenContainer({
   const body = scroll ? (
     <ScrollView
       style={styles.flex}
-      contentContainerStyle={[padding, styles.scrollContent, contentStyle]}
+      contentContainerStyle={[padding, styles.scrollContent, styles.readable, contentStyle]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
       {children}
     </ScrollView>
   ) : (
-    <View style={[styles.flex, padding, contentStyle]}>{children}</View>
+    <View style={[styles.flex, padding, styles.readable, contentStyle]}>{children}</View>
   );
 
   return (
@@ -71,4 +74,5 @@ export function ScreenContainer({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   scrollContent: { paddingBottom: 120 },
+  readable: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' },
 });

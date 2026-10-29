@@ -1,14 +1,14 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { resolveRoutineColor } from '../../constants/colors';
+import { resolveOnRoutineColor, resolveRoutineColor } from '../../constants/colors';
 import type { PlannedRoutine } from '../../types/planning';
-import { formatDuration } from '../../utils/format';
+import { formatDuration, pluralize } from '../../utils/format';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from '../common/AppText';
 import { Icon } from '../common/Icon';
 import { PressableScale } from '../common/PressableScale';
-import { StatusBadge } from '../common/StatusBadge';
+import { StatusBadge, statusLabel } from '../common/StatusBadge';
 
 interface TimelineItemProps {
   planned: PlannedRoutine;
@@ -39,15 +39,16 @@ export function TimelineItem({
           ? theme.colors.warning
           : color;
   const isActive = status === 'active' || status === 'ready' || status === 'overdue';
+  const steps = `${routine.steps.length} ${pluralize(routine.steps.length, 'Schritt', 'Schritte')}`;
+  const time = startTime ?? 'Flexibel';
 
   return (
     <View style={styles.row}>
       <View style={styles.timeColumn}>
-        <AppText variant="caption" color="secondaryText">
-          {startTime ?? 'Flexibel'}
+        <AppText variant="caption" color="secondaryText" maxFontSizeMultiplier={1.3}>
+          {time}
         </AppText>
       </View>
-
       <View style={styles.lineColumn}>
         <View
           style={[
@@ -66,7 +67,8 @@ export function TimelineItem({
         onPress={onPress}
         scaleTo={0.98}
         accessibilityRole="button"
-        accessibilityLabel={`${routine.title}, ${status}`}
+        accessibilityLabel={`${routine.title}, ${time}, ${formatDuration(routine.estimatedDuration)}, ${steps}, ${statusLabel(status)}`}
+        accessibilityHint="Öffnet Aktionen für diese Routine"
         style={[
           styles.card,
           {
@@ -80,14 +82,14 @@ export function TimelineItem({
         ]}
       >
         <View style={[styles.iconCircle, { backgroundColor: color }]}>
-          <Icon name={routine.icon} size={20} color={theme.colors.onAccent} />
+          <Icon name={routine.icon} size={20} color={resolveOnRoutineColor(routine.color)} />
         </View>
         <View style={styles.body}>
           <AppText variant="headline" numberOfLines={1}>
             {routine.title}
           </AppText>
-          <AppText variant="caption" color="secondaryText">
-            {formatDuration(routine.estimatedDuration)} · {routine.steps.length} Schritte
+          <AppText variant="caption" color="secondaryText" numberOfLines={1}>
+            {formatDuration(routine.estimatedDuration)} · {steps}
           </AppText>
         </View>
         <StatusBadge status={status} />

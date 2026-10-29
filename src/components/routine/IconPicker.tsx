@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { PICKABLE_ICONS, type IconKey } from '../../constants/icons';
+import { PICKABLE_ICONS, iconLabel, type IconKey } from '../../constants/icons';
+import { onColorForHex } from '../../constants/colors';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Icon } from '../common/Icon';
 import { PressableScale } from '../common/PressableScale';
@@ -17,7 +18,7 @@ export function IconPicker({ value, onChange, accentColor }: IconPickerProps): R
   const theme = useTheme();
   const accent = accentColor ?? theme.colors.accent;
   return (
-    <View style={styles.grid}>
+    <View style={styles.grid} accessibilityRole="radiogroup">
       {PICKABLE_ICONS.map((iconKey) => {
         const isSelected = iconKey === value;
         return (
@@ -26,9 +27,9 @@ export function IconPicker({ value, onChange, accentColor }: IconPickerProps): R
             onPress={() => onChange(iconKey)}
             haptic="selection"
             scaleTo={0.9}
-            accessibilityRole="button"
+            accessibilityRole="radio"
             accessibilityState={{ selected: isSelected }}
-            accessibilityLabel={`Symbol ${iconKey}`}
+            accessibilityLabel={`Symbol ${iconLabel(iconKey)}`}
             style={[
               styles.cell,
               {
@@ -40,7 +41,7 @@ export function IconPicker({ value, onChange, accentColor }: IconPickerProps): R
             <Icon
               name={iconKey}
               size={24}
-              color={isSelected ? theme.colors.onAccent : theme.colors.primaryText}
+              color={isSelected ? onColorForHex(accent) : theme.colors.primaryText}
             />
           </PressableScale>
         );

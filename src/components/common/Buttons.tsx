@@ -36,7 +36,13 @@ interface IconButtonProps {
   disabled?: boolean;
 }
 
-/** Circular icon-only button with a neutral fill by default. */
+/** Minimum comfortable touch target (Apple HIG / Material). */
+const MIN_TARGET = 44;
+
+/**
+ * Circular icon-only button with a neutral fill by default. Visually it can
+ * be smaller than 44pt; the touch target is padded out with `hitSlop`.
+ */
 export function IconButton({
   iconName,
   onPress,
@@ -47,13 +53,16 @@ export function IconButton({
   disabled = false,
 }: IconButtonProps): React.ReactElement {
   const theme = useTheme();
+  const slop = Math.max(0, (MIN_TARGET - size) / 2);
   return (
     <PressableScale
       onPress={onPress}
       disabled={disabled}
       haptic="light"
+      hitSlop={slop}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
       style={[
         styles.iconButton,
         {

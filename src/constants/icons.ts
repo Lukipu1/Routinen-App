@@ -171,3 +171,43 @@ export {
   TrendingUp,
   Sparkles,
 };
+
+/** German names for the icon picker (screen readers read these). */
+export const ICON_LABELS: Partial<Record<IconKey, string>> = {
+  sunrise: 'Sonnenaufgang',
+  sunset: 'Sonnenuntergang',
+  sun: 'Sonne',
+  moon: 'Mond',
+  moonStar: 'Mond mit Stern',
+  coffee: 'Kaffee',
+  bed: 'Bett',
+  water: 'Wasserglas',
+  droplets: 'Tropfen',
+  brush: 'Zahnbürste',
+  target: 'Zielscheibe',
+  checklist: 'Checkliste',
+  book: 'Buch',
+  brain: 'Gehirn',
+  notebook: 'Notizbuch',
+  work: 'Aktentasche',
+  home: 'Haus',
+  heart: 'Herz',
+  dumbbell: 'Hantel',
+  activity: 'Aktivität',
+  footprints: 'Fußspuren',
+  waves: 'Wellen',
+  wind: 'Wind',
+  shirt: 'Kleidung',
+  phone: 'Smartphone',
+  clock: 'Uhr',
+  timer: 'Timer',
+  bell: 'Glocke',
+  flame: 'Flamme',
+  award: 'Auszeichnung',
+  trending: 'Trend',
+  sparkles: 'Funkeln',
+};
+
+export function iconLabel(key: string): string {
+  return ICON_LABELS[key as IconKey] ?? key;
+}

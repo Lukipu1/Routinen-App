@@ -35,6 +35,9 @@ export interface ColorTokens {
   success: string;
   warning: string;
   error: string;
+  /** Darker success/warning for *text*; the base colours only pass as fills. */
+  successText: string;
+  warningText: string;
   /** Scrim behind modals and sheets. */
   overlay: string;
 }
@@ -55,6 +58,8 @@ export const lightColors: ColorTokens = {
   success: '#34C759',
   warning: '#FF9500',
   error: '#FF3B30',
+  successText: '#1E8E3E',
+  warningText: '#B35C00',
   overlay: 'rgba(0,0,0,0.4)',
 };
 
@@ -74,5 +79,7 @@ export const darkColors: ColorTokens = {
   success: '#30D158',
   warning: '#FF9F0A',
   error: '#FF453A',
+  successText: '#30D158',
+  warningText: '#FF9F0A',
   overlay: 'rgba(0,0,0,0.6)',
 };

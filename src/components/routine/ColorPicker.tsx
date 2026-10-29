@@ -1,8 +1,13 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { PICKABLE_COLORS, ROUTINE_COLORS, type RoutineColorKey } from '../../constants/colors';
-import { useTheme } from '../../theme/ThemeProvider';
+import {
+  PICKABLE_COLORS,
+  ROUTINE_COLORS,
+  ROUTINE_COLOR_LABELS,
+  resolveOnRoutineColor,
+  type RoutineColorKey,
+} from '../../constants/colors';
 import { Icon } from '../common/Icon';
 import { PressableScale } from '../common/PressableScale';
 
@@ -13,9 +18,8 @@ interface ColorPickerProps {
 
 /** Row of selectable accent-colour swatches. */
 export function ColorPicker({ value, onChange }: ColorPickerProps): React.ReactElement {
-  const theme = useTheme();
   return (
-    <View style={styles.grid}>
+    <View style={styles.grid} accessibilityRole="radiogroup">
       {PICKABLE_COLORS.map((colorKey) => {
         const isSelected = colorKey === value;
         const hex = ROUTINE_COLORS[colorKey];
@@ -25,12 +29,12 @@ export function ColorPicker({ value, onChange }: ColorPickerProps): React.ReactE
             onPress={() => onChange(colorKey)}
             haptic="selection"
             scaleTo={0.9}
-            accessibilityRole="button"
+            accessibilityRole="radio"
             accessibilityState={{ selected: isSelected }}
-            accessibilityLabel={`Farbe ${colorKey}`}
+            accessibilityLabel={`Farbe ${ROUTINE_COLOR_LABELS[colorKey]}`}
             style={[styles.swatch, { backgroundColor: hex }]}
           >
-            {isSelected ? <Icon name="check" size={20} color={theme.colors.onAccent} /> : null}
+            {isSelected ? <Icon name="check" size={20} color={resolveOnRoutineColor(colorKey)} /> : null}
           </PressableScale>
         );
       })}

@@ -1,4 +1,6 @@
 export { AppText } from './AppText';
+export { AppSwitch } from './AppSwitch';
+export { Chip } from './Chip';
 export { AppHeader } from './AppHeader';
 export { Button } from './Button';
 export type { ButtonVariant } from './Button';
@@ -13,8 +15,9 @@ export { PressableScale } from './PressableScale';
 export { SectionHeader } from './SectionHeader';
 export { SettingRow } from './SettingRow';
 export { LoadingState, ErrorState } from './StateViews';
-export { StatusBadge } from './StatusBadge';
+export { StatusBadge, statusLabel } from './StatusBadge';
 export { TextField } from './TextField';
 export { TimePickerField } from './TimePickerField';
 export { ToastHost, useToast } from './Toast';
+export type { ToastAction } from './Toast';
 export { WeekDaySelector } from './WeekDaySelector';

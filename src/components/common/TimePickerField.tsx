@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type { TimeString } from '../../types/common';
 import { timeToMinutes } from '../../utils/datetime';
+import { onColorForHex } from '../../constants/colors';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from './AppText';
 import { BottomSheet } from './BottomSheet';
@@ -54,36 +55,18 @@ export function TimePickerField({
     items: number[],
     selected: number,
     onSelect: (v: number) => void,
-    testLabel: string,
+    columnLabel: string,
+    unit: string,
   ): React.ReactElement => (
-    <ScrollView
-      style={styles.column}
-      showsVerticalScrollIndicator={false}
-      accessibilityLabel={testLabel}
-    >
-      {items.map((item) => {
-        const isSelected = item === selected;
-        return (
-          <PressableScale
-            key={item}
-            onPress={() => onSelect(item)}
-            haptic="selection"
-            scaleTo={0.95}
-            style={[
-              styles.option,
-              isSelected ? { backgroundColor: accent, borderRadius: theme.radii.sm } : null,
-            ]}
-          >
-            <AppText
-              variant="title"
-              style={{ color: isSelected ? theme.colors.onAccent : theme.colors.primaryText }}
-            >
-              {pad(item)}
-            </AppText>
-          </PressableScale>
-        );
-      })}
-    </ScrollView>
+    <PickerColumn
+      items={items}
+      selected={selected}
+      onSelect={onSelect}
+      columnLabel={columnLabel}
+      unit={unit}
+      accent={accent}
+      open={open}
+    />
   );
 
   return (
@@ -109,13 +92,84 @@ export function TimePickerField({
 
       <BottomSheet visible={open} onClose={() => setOpen(false)} title="Uhrzeit wählen">
         <View style={styles.pickerRow}>
-          {renderColumn(HOURS, hour, setHour, 'Stunden')}
+          {renderColumn(HOURS, hour, setHour, 'Stunden', 'Uhr')}
           <AppText variant="display">:</AppText>
-          {renderColumn(MINUTES, minute, setMinute, 'Minuten')}
+          {renderColumn(MINUTES, minute, setMinute, 'Minuten', 'Minuten')}
         </View>
         <PrimaryButton title="Fertig" onPress={confirm} accentColor={accent} />
       </BottomSheet>
     </>
+  );
+}
+
+/** Height of one picker row; used to scroll the selected value into view. */
+const OPTION_HEIGHT = 48;
+
+function PickerColumn({
+  items,
+  selected,
+  onSelect,
+  columnLabel,
+  unit,
+  accent,
+  open,
+}: {
+  items: number[];
+  selected: number;
+  onSelect: (v: number) => void;
+  columnLabel: string;
+  unit: string;
+  accent: string;
+  open: boolean;
+}): React.ReactElement {
+  const theme = useTheme();
+  const ref = useRef<ScrollView>(null);
+  // Jump to the current value when the sheet opens so the user is not left
+  // staring at 00 and scrolling from the top every time.
+  useEffect(() => {
+    if (!open) return;
+    const index = Math.max(0, items.indexOf(selected));
+    const timer = setTimeout(() => {
+      ref.current?.scrollTo({ y: Math.max(0, (index - 1) * OPTION_HEIGHT), animated: false });
+    }, 0);
+    return () => clearTimeout(timer);
+    // Only on open: scrolling on every selection would fight the user's finger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  return (
+    <ScrollView
+      ref={ref}
+      style={styles.column}
+      showsVerticalScrollIndicator={false}
+      accessibilityLabel={columnLabel}
+      accessibilityRole="radiogroup"
+    >
+      {items.map((item) => {
+        const isSelected = item === selected;
+        return (
+          <PressableScale
+            key={item}
+            onPress={() => onSelect(item)}
+            haptic="selection"
+            scaleTo={0.95}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: isSelected }}
+            accessibilityLabel={`${pad(item)} ${unit}`}
+            style={[
+              styles.option,
+              isSelected ? { backgroundColor: accent, borderRadius: theme.radii.sm } : null,
+            ]}
+          >
+            <AppText
+              variant="title"
+              style={{ color: isSelected ? onColorForHex(accent) : theme.colors.primaryText }}
+            >
+              {pad(item)}
+            </AppText>
+          </PressableScale>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -145,7 +199,8 @@ const styles = StyleSheet.create({
   },
   option: {
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'center',
+    height: OPTION_HEIGHT - 4,
     marginVertical: 2,
   },
 });

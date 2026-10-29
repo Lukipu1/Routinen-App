@@ -1,12 +1,16 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { resolveRoutineColor } from '../../constants/colors';
+import {
+  resolveOnRoutineColor,
+  resolveRoutineColor,
+  resolveRoutineTextColor,
+} from '../../constants/colors';
 import { WEEKDAY_LONG, summariseWeekdays } from '../../constants/weekdays';
 import type { ISODateString, WeekStart } from '../../types/common';
 import type { Routine } from '../../types/routine';
 import { addDaysISO, parseISODate, todayISO } from '../../utils/datetime';
-import { formatDuration } from '../../utils/format';
+import { formatDuration, pluralize } from '../../utils/format';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from '../common/AppText';
 import { Icon } from '../common/Icon';
@@ -34,16 +38,17 @@ export function RoutineCard({
 }: RoutineCardProps): React.ReactElement {
   const theme = useTheme();
   const color = resolveRoutineColor(routine.color);
+  const textColor = resolveRoutineTextColor(routine.color, theme.scheme);
   const subtitle = [
     formatDuration(routine.estimatedDuration),
-    `${routine.steps.length} Schritte`,
+    `${routine.steps.length} ${pluralize(routine.steps.length, 'Schritt', 'Schritte')}`,
     summariseWeekdays(routine.schedule.weekdays, weekStartsOn),
   ].join('  ·  ');
 
   const nextLabel = !routine.isActive
-    ? 'Pausiert'
+    ? 'Inaktiv'
     : nextOccurrence
-      ? `Nächste: ${relativeDayLabel(nextOccurrence)}`
+      ? `Nächstes Mal: ${relativeDayLabel(nextOccurrence)}`
       : 'Kein Zeitplan';
 
   return (
@@ -51,7 +56,8 @@ export function RoutineCard({
       onPress={onPress}
       scaleTo={0.98}
       accessibilityRole="button"
-      accessibilityLabel={routine.title}
+      accessibilityLabel={`${routine.title}, ${subtitle}, ${nextLabel}`}
+      accessibilityHint="Öffnet die Details"
       style={[
         styles.card,
         theme.shadows.card,
@@ -64,7 +70,7 @@ export function RoutineCard({
       ]}
     >
       <View style={[styles.iconCircle, { backgroundColor: color }]}>
-        <Icon name={routine.icon} size={24} color={theme.colors.onAccent} />
+        <Icon name={routine.icon} size={24} color={resolveOnRoutineColor(routine.color)} />
       </View>
       <View style={styles.body}>
         <View style={styles.titleRow}>
@@ -82,7 +88,7 @@ export function RoutineCard({
         <AppText variant="caption" color="secondaryText" numberOfLines={1}>
           {subtitle}
         </AppText>
-        <AppText variant="caption" style={{ color, marginTop: 2 }} weight="600">
+        <AppText variant="caption" style={{ color: textColor, marginTop: 2 }} weight="600">
           {nextLabel}
         </AppText>
       </View>

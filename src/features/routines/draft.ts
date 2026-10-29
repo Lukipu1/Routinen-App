@@ -20,6 +20,9 @@ export interface RoutineStepDraft {
 export interface RoutineDraft {
   /** `null` for a new routine, otherwise the id being edited. */
   id: string | null;
+  /** Preserved from the edited routine so editing does not reset them. */
+  createdAt?: string;
+  isSample?: boolean;
   title: string;
   description: string;
   icon: IconKey;
@@ -111,6 +114,17 @@ export function moveStep(draft: RoutineDraft, from: number, to: number): Routine
   return { ...draft, steps: moveItem(draft.steps, from, to) };
 }
 
+/**
+ * Drops steps without a name, as long as at least one named step remains.
+ * Used when leaving the steps page so an empty extra card added by accident
+ * does not block saving later.
+ */
+export function pruneEmptySteps(draft: RoutineDraft): RoutineDraft {
+  const named = draft.steps.filter((step) => step.title.trim().length > 0);
+  if (named.length === 0 || named.length === draft.steps.length) return draft;
+  return { ...draft, steps: named };
+}
+
 /** Converts an editor draft into a persistable Routine. */
 export function routineFromDraft(draft: RoutineDraft, now: Date = new Date()): Routine {
   const timestamp = nowISO(now);
@@ -136,8 +150,8 @@ export function routineFromDraft(draft: RoutineDraft, now: Date = new Date()): R
     schedule: draft.schedule,
     reminder: draft.reminder,
     isActive: draft.isActive,
-    isSample: false,
-    createdAt: timestamp,
+    isSample: draft.isSample ?? false,
+    createdAt: draft.createdAt ?? timestamp,
     updatedAt: timestamp,
   };
 }
@@ -146,6 +160,8 @@ export function routineFromDraft(draft: RoutineDraft, now: Date = new Date()): R
 export function draftFromRoutine(routine: Routine): RoutineDraft {
   return {
     id: routine.id,
+    createdAt: routine.createdAt,
+    isSample: routine.isSample,
     title: routine.title,
     description: routine.description ?? '',
     icon: routine.icon as IconKey,

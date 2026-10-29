@@ -2,6 +2,8 @@ import { makeRoutine, makeStep } from '../../../testing/factories';
 import {
   abandonExecution,
   addStepTime,
+  goBackStep,
+  reopenLastStep,
   buildCompletion,
   completeStep,
   pauseExecution,
@@ -109,6 +111,35 @@ describe('executionLogic', () => {
     expect(exec.status).toBe('paused');
     expect(exec.stepStartedAt).toBeNull();
     expect(stepElapsedSeconds(exec, at(999))).toBe(0);
+  });
+
+  it('steps back and un-marks the previous step', () => {
+    const routine = routine3();
+    let exec = startExecution(routine, '2026-07-22', T0);
+    exec = completeStep(routine, exec, at(10));
+    exec = skipStep(routine, exec, at(20));
+    exec = goBackStep(routine, exec, at(25));
+    expect(exec.currentStepIndex).toBe(1);
+    expect(exec.skippedStepIds).toEqual([]);
+    expect(exec.completedStepIds).toEqual(['s0']);
+    expect(exec.activeSeconds).toBe(25);
+    // Cannot go back from the first step.
+    exec = goBackStep(routine, goBackStep(routine, exec, at(30)), at(30));
+    expect(exec.currentStepIndex).toBe(0);
+  });
+
+  it('reopens a finished run on its last step', () => {
+    const routine = routine3();
+    let exec = startExecution(routine, '2026-07-22', T0);
+    exec = completeStep(routine, exec, at(10));
+    exec = completeStep(routine, exec, at(20));
+    exec = completeStep(routine, exec, at(30));
+    expect(exec.status).toBe('completed');
+    exec = reopenLastStep(routine, exec, at(40));
+    expect(exec.status).toBe('active');
+    expect(exec.currentStepIndex).toBe(2);
+    expect(exec.completedStepIds).toEqual(['s0', 's1']);
+    expect(exec.completedAt).toBeNull();
   });
 
   it('does not count a run as completed when every step was skipped', () => {

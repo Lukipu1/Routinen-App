@@ -12,11 +12,12 @@ import { Icon } from '../../components/common/Icon';
 import { SectionHeader } from '../../components/common/SectionHeader';
 import { useToast } from '../../components/common/Toast';
 import { StepListItem } from '../../components/routine/StepListItem';
-import { resolveRoutineColor } from '../../constants/colors';
+import { resolveOnRoutineColor, resolveRoutineColor } from '../../constants/colors';
 import { CATEGORY_META } from '../../constants/categories';
 import { summariseWeekdays } from '../../constants/weekdays';
 import { usePreferences } from '../../hooks/usePreferences';
-import { formatDuration } from '../../utils/format';
+import { useToday } from '../../hooks/useToday';
+import { formatDuration, pluralize } from '../../utils/format';
 import { useAppStore } from '../../store/appStore';
 import { useTheme } from '../../theme/ThemeProvider';
 
@@ -31,7 +32,9 @@ export function RoutineDetailScreen(): React.ReactElement {
   const toggleActive = useAppStore((s) => s.toggleRoutineActive);
   const deleteRoutine = useAppStore((s) => s.deleteRoutine);
   const addForToday = useAppStore((s) => s.addRoutineForToday);
+  const { planned } = useToday();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   if (!routine) {
     return (
@@ -47,11 +50,26 @@ export function RoutineDetailScreen(): React.ReactElement {
   }
 
   const accent = resolveRoutineColor(routine.color);
+  const todayEntry = planned.find((p) => p.routine.id === routine.id);
+  const plannedToday = todayEntry !== undefined && todayEntry.status !== 'skipped';
+  const stepCount = routine.steps.length;
+
+  const run = async (action: () => Promise<void>, success: string): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action();
+      toast(success, 'success');
+    } catch {
+      toast('Das hat leider nicht geklappt', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleDelete = async (): Promise<void> => {
     setConfirmDelete(false);
-    await deleteRoutine(routine.id);
-    toast('Routine gelöscht');
+    await run(() => deleteRoutine(routine.id), 'Routine gelöscht');
     router.back();
   };
 
@@ -64,7 +82,7 @@ export function RoutineDetailScreen(): React.ReactElement {
         <IconButton iconName="close" accessibilityLabel="Schließen" onPress={() => router.back()} />
         <IconButton
           iconName="edit"
-          accessibilityLabel="Bearbeiten"
+          accessibilityLabel="Routine bearbeiten"
           onPress={() => router.push({ pathname: '/editor', params: { id: routine.id } })}
         />
       </View>
@@ -75,18 +93,23 @@ export function RoutineDetailScreen(): React.ReactElement {
       >
         <View style={styles.hero}>
           <View style={[styles.icon, { backgroundColor: accent }]}>
-            <Icon name={routine.icon} size={32} color={theme.colors.onAccent} />
+            <Icon name={routine.icon} size={32} color={resolveOnRoutineColor(routine.color)} />
           </View>
-          <AppText variant="largeTitle" center>
+          <AppText variant="largeTitle" center accessibilityRole="header">
             {routine.title}
           </AppText>
           <AppText variant="callout" color="secondaryText" center>
-            {formatDuration(routine.estimatedDuration)} · {routine.steps.length} Schritte ·{' '}
-            {CATEGORY_META[routine.category].label}
+            {routine.estimatedDuration > 0 ? `${formatDuration(routine.estimatedDuration)} · ` : ''}
+            {stepCount} {pluralize(stepCount, 'Schritt', 'Schritte')} · {CATEGORY_META[routine.category].label}
           </AppText>
           {!routine.isActive ? (
-            <AppText variant="caption" style={{ color: theme.colors.warning }} weight="600">
-              Pausiert
+            <AppText variant="caption" style={{ color: theme.colors.warningText }} weight="600">
+              Inaktiv – erscheint nicht im Tagesplan
+            </AppText>
+          ) : null}
+          {routine.description ? (
+            <AppText variant="body" color="secondaryText" center>
+              {routine.description}
             </AppText>
           ) : null}
         </View>
@@ -96,6 +119,16 @@ export function RoutineDetailScreen(): React.ReactElement {
           <Row
             label="Startzeit"
             value={routine.schedule.flexible ? 'Flexibel' : (routine.schedule.startTime ?? '—')}
+          />
+          <Row
+            label="Erinnerung"
+            value={
+              routine.reminder.enabled
+                ? routine.reminder.minutesBefore === 0
+                  ? 'Zum Start'
+                  : `${routine.reminder.minutesBefore} Min vorher`
+                : 'Aus'
+            }
             last
           />
         </View>
@@ -111,30 +144,32 @@ export function RoutineDetailScreen(): React.ReactElement {
 
         <View style={{ gap: theme.spacing.sm }}>
           <PrimaryButton
-            title="Für heute einplanen"
-            iconName="calendar"
+            title={plannedToday ? 'Heute bereits geplant' : 'Für heute einplanen'}
+            iconName={plannedToday ? 'check' : 'calendar'}
             accentColor={accent}
-            onPress={async () => {
-              await addForToday(routine.id);
-              toast('Für heute eingeplant', 'success');
-            }}
+            disabled={plannedToday}
+            onPress={() => run(() => addForToday(routine.id), 'Für heute eingeplant')}
           />
           <SecondaryButton
             title="Duplizieren"
             iconName="copy"
-            onPress={async () => {
-              await duplicateRoutine(routine.id);
-              toast('Routine dupliziert', 'success');
-            }}
+            onPress={() => run(() => duplicateRoutine(routine.id), 'Kopie erstellt')}
           />
           <SecondaryButton
-            title={routine.isActive ? 'Pausieren' : 'Aktivieren'}
-            iconName={routine.isActive ? 'pause' : 'play'}
-            onPress={async () => {
-              await toggleActive(routine.id);
-              toast(routine.isActive ? 'Pausiert' : 'Aktiviert');
-            }}
+            title={routine.isActive ? 'Deaktivieren' : 'Aktivieren'}
+            iconName={routine.isActive ? 'bellOff' : 'play'}
+            onPress={() =>
+              run(
+                () => toggleActive(routine.id),
+                routine.isActive ? 'Routine deaktiviert' : 'Routine aktiviert',
+              )
+            }
           />
+          {routine.isActive ? (
+            <AppText variant="caption" color="secondaryText" center>
+              Deaktivieren nimmt die Routine aus dem Plan, ohne sie oder ihren Verlauf zu löschen.
+            </AppText>
+          ) : null}
           <Button
             variant="destructive"
             title="Löschen"
@@ -197,6 +232,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
     paddingVertical: 14,
   },
 });

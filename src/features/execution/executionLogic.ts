@@ -234,6 +234,55 @@ export function abandonExecution(execution: RoutineExecution, now: Date): Routin
 }
 
 /**
+ * Steps back to the previous step ("Vorheriger Schritt"), un-marking it so an
+ * accidental "Erledigt" can be undone. Time already spent stays banked.
+ */
+export function goBackStep(
+  routine: Routine,
+  execution: RoutineExecution,
+  now: Date,
+): RoutineExecution {
+  if (execution.status === 'completed' || execution.status === 'abandoned') return execution;
+  const previousIndex = execution.currentStepIndex - 1;
+  const previous = routine.steps[previousIndex];
+  if (!previous) return execution;
+  return {
+    ...execution,
+    currentStepIndex: previousIndex,
+    completedStepIds: execution.completedStepIds.filter((id) => id !== previous.id),
+    skippedStepIds: execution.skippedStepIds.filter((id) => id !== previous.id),
+    stepStartedAt: startStepAt(execution, now),
+    accumulatedStepSeconds: 0,
+    activeSeconds: activeSecondsSoFar(execution, now),
+  };
+}
+
+/**
+ * Reopens a run that was just completed, positioned on its last step, so a
+ * premature final "Erledigt" can be taken back from the success screen.
+ */
+export function reopenLastStep(
+  routine: Routine,
+  execution: RoutineExecution,
+  now: Date,
+): RoutineExecution {
+  if (execution.status !== 'completed') return execution;
+  const lastIndex = routine.steps.length - 1;
+  const last = routine.steps[lastIndex];
+  if (!last) return execution;
+  return {
+    ...execution,
+    status: 'active',
+    completedAt: null,
+    currentStepIndex: lastIndex,
+    completedStepIds: execution.completedStepIds.filter((id) => id !== last.id),
+    skippedStepIds: execution.skippedStepIds.filter((id) => id !== last.id),
+    stepStartedAt: nowISO(now),
+    accumulatedStepSeconds: 0,
+  };
+}
+
+/**
  * Re-aligns a stored run with the routine's *current* steps. If the routine was
  * edited while the run was paused (steps removed, reordered or inserted), the
  * stored index may point past the end or at a different step. The handled step

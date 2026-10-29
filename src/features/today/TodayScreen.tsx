@@ -4,7 +4,9 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppHeader } from '../../components/common/AppHeader';
 import { AppText } from '../../components/common/AppText';
-import { FloatingActionButton } from '../../components/common/Buttons';
+import { BottomSheet } from '../../components/common/BottomSheet';
+import { FloatingActionButton, PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
+import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
 import { EmptyState } from '../../components/common/EmptyState';
 import { Icon } from '../../components/common/Icon';
@@ -17,6 +19,7 @@ import { useToday } from '../../hooks/useToday';
 import type { PlannedRoutine } from '../../types/planning';
 import { pluralize } from '../../utils/format';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useAppStore } from '../../store/appStore';
 import { useExecutionStore } from '../../store/executionStore';
 import { AddToDaySheet } from './AddToDaySheet';
 import { PlannedActionsSheet } from './PlannedActionsSheet';
@@ -32,16 +35,18 @@ function DayProgressCard({
   skipped: number;
   fraction: number;
 }): React.ReactElement {
+  const summary = `${completed} von ${total} ${pluralize(total, 'Routine', 'Routinen')} erledigt${
+    skipped > 0 ? ` · ${skipped} übersprungen` : ''
+  }`;
   return (
-    <Card elevated style={styles.progressCard}>
+    <Card elevated style={styles.progressCard} accessibilityLabel={`Tagesfortschritt: ${summary}`}>
       <ProgressRing progress={fraction} size={76} strokeWidth={9}>
         <AppText variant="headline">{`${completed}/${total}`}</AppText>
       </ProgressRing>
       <View style={styles.progressText}>
         <AppText variant="headline">Tagesfortschritt</AppText>
         <AppText variant="callout" color="secondaryText">
-          {completed} von {total} {pluralize(total, 'Routine', 'Routinen')} erledigt
-          {skipped > 0 ? ` · ${skipped} übersprungen` : ''}
+          {summary}
         </AppText>
       </View>
     </Card>
@@ -52,10 +57,13 @@ export function TodayScreen(): React.ReactElement {
   const router = useRouter();
   const theme = useTheme();
   const { dateISO, dateLabel, greeting, planned, next, progress, conflicts } = useToday();
+  const hasRoutines = useAppStore((s) => s.routines.length > 0);
   const [actionItem, setActionItem] = useState<PlannedRoutine | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
+  const [addMode, setAddMode] = useState<'closed' | 'choice' | 'existing'>('closed');
+  /** A different routine is still live while the user wants to start this one. */
+  const [conflict, setConflict] = useState<{ wanted: PlannedRoutine; running: PlannedRoutine } | null>(null);
 
-  const startOrResume = async (item: PlannedRoutine): Promise<void> => {
+  const openRun = async (item: PlannedRoutine): Promise<void> => {
     const execution = item.execution;
     if (execution && (execution.status === 'active' || execution.status === 'paused')) {
       await useExecutionStore.getState().attach(item.routine, execution);
@@ -64,6 +72,30 @@ export function TodayScreen(): React.ReactElement {
     }
     setActionItem(null);
     router.push({ pathname: '/run', params: { routineId: item.routine.id, date: dateISO } });
+  };
+
+  const startOrResume = async (item: PlannedRoutine): Promise<void> => {
+    const running = planned.find(
+      (p) => p.routine.id !== item.routine.id && (p.status === 'active' || p.status === 'paused'),
+    );
+    if (running) {
+      setActionItem(null);
+      setConflict({ wanted: item, running });
+      return;
+    }
+    await openRun(item);
+  };
+
+  const endRunningAndStart = async (): Promise<void> => {
+    if (!conflict) return;
+    const { wanted, running } = conflict;
+    setConflict(null);
+    if (running.execution) {
+      await useExecutionStore.getState().attach(running.routine, running.execution);
+      await useExecutionStore.getState().abandon();
+      useExecutionStore.getState().clear();
+    }
+    await openRun(wanted);
   };
 
   return (
@@ -75,9 +107,17 @@ export function TodayScreen(): React.ReactElement {
           <EmptyState
             icon="sparkles"
             title="Dein Tag ist noch frei"
-            message="Plane deine erste Routine und starte entspannt in den Tag."
-            actionLabel="Erste Routine planen"
-            onAction={() => router.push('/editor')}
+            message={
+              hasRoutines
+                ? 'Heute steht keine Routine im Plan. Du kannst eine vorhandene für heute einplanen oder eine neue anlegen.'
+                : 'Plane deine erste Routine und starte entspannt in den Tag.'
+            }
+            actionLabel={hasRoutines ? 'Routine für heute einplanen' : 'Erste Routine planen'}
+            onAction={() =>
+              hasRoutines
+                ? setAddMode('existing')
+                : router.push({ pathname: '/editor', params: { forToday: '1' } })
+            }
           />
         ) : (
           <View style={{ gap: theme.spacing.base }}>
@@ -93,12 +133,18 @@ export function TodayScreen(): React.ReactElement {
             {conflicts.length > 0 ? (
               <Card style={{ backgroundColor: theme.colors.accentMuted }}>
                 <View style={styles.conflictRow}>
-                  <Icon name="clock" size={18} color={theme.colors.warning} />
-                  <AppText variant="callout" style={{ flex: 1 }}>
-                    {conflicts.length}{' '}
-                    {pluralize(conflicts.length, 'Zeitüberschneidung', 'Zeitüberschneidungen')} –
-                    prüfe deinen Zeitplan.
-                  </AppText>
+                  <Icon name="clock" size={18} color={theme.colors.warningText} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <AppText variant="callout">
+                      {conflicts.length}{' '}
+                      {pluralize(conflicts.length, 'Zeitüberschneidung', 'Zeitüberschneidungen')}
+                    </AppText>
+                    {conflicts.slice(0, 3).map((c) => (
+                      <AppText key={`${c.a.routine.id}-${c.b.routine.id}`} variant="caption" color="secondaryText">
+                        {c.a.routine.title} und {c.b.routine.title} überlappen sich um {c.overlapMinutes} Min
+                      </AppText>
+                    ))}
+                  </View>
                 </View>
               </Card>
             ) : null}
@@ -122,7 +168,7 @@ export function TodayScreen(): React.ReactElement {
       <View style={styles.fab}>
         <FloatingActionButton
           accessibilityLabel="Routine hinzufügen"
-          onPress={() => setAddOpen(true)}
+          onPress={() => setAddMode('choice')}
         />
       </View>
 
@@ -131,7 +177,38 @@ export function TodayScreen(): React.ReactElement {
         onClose={() => setActionItem(null)}
         onStart={startOrResume}
       />
-      <AddToDaySheet visible={addOpen} onClose={() => setAddOpen(false)} />
+      <AddToDaySheet
+        key={addMode}
+        visible={addMode !== 'closed'}
+        initialMode={addMode === 'existing' ? 'existing' : 'choice'}
+        planned={planned}
+        onClose={() => setAddMode('closed')}
+      />
+
+      <BottomSheet visible={conflict !== null} onClose={() => setConflict(null)} title="Eine Routine läuft noch">
+        {conflict ? (
+          <View style={{ gap: 10 }}>
+            <AppText variant="body" color="secondaryText">
+              „{conflict.running.routine.title}“ ist noch nicht beendet. Was möchtest du tun?
+            </AppText>
+            <PrimaryButton
+              title={`Bei „${conflict.running.routine.title}“ weitermachen`}
+              iconName="play"
+              onPress={() => {
+                const running = conflict.running;
+                setConflict(null);
+                void openRun(running);
+              }}
+            />
+            <SecondaryButton
+              title={`„${conflict.running.routine.title}“ beenden und „${conflict.wanted.routine.title}“ starten`}
+              iconName="skip"
+              onPress={() => void endRunningAndStart()}
+            />
+            <Button variant="ghost" title="Abbrechen" onPress={() => setConflict(null)} />
+          </View>
+        ) : null}
+      </BottomSheet>
     </View>
   );
 }
@@ -144,7 +221,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   progressText: { flex: 1, gap: 2 },
-  conflictRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  conflictRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   fab: {
     position: 'absolute',
     right: 20,

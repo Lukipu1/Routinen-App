@@ -9,11 +9,11 @@ import { Icon } from '../../components/common/Icon';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { SectionHeader } from '../../components/common/SectionHeader';
 import { ProgressBar } from '../../components/progress/ProgressBar';
-import { WEEKDAY_SHORT } from '../../constants/weekdays';
+import { WEEKDAY_LONG, WEEKDAY_SHORT } from '../../constants/weekdays';
 import { resolveRoutineColor } from '../../constants/colors';
 import type { WeekDayStat } from './stats';
 import { useStatistics } from '../../hooks/useStatistics';
-import { formatDuration } from '../../utils/format';
+import { formatDuration, pluralize } from '../../utils/format';
 import { useAppStore } from '../../store/appStore';
 import { useTheme } from '../../theme/ThemeProvider';
 
@@ -29,7 +29,7 @@ function StatTile({
   color: string;
 }): React.ReactElement {
   return (
-    <Card elevated style={styles.tile}>
+    <Card elevated style={styles.tile} accessibilityLabel={`${label}: ${value}`}>
       <Icon name={icon} size={22} color={color} />
       <AppText variant="title">{value}</AppText>
       <AppText variant="caption" color="secondaryText">
@@ -48,23 +48,35 @@ function WeeklyChart({ week }: { week: WeekDayStat[] }): React.ReactElement {
         {week.map((day) => {
           const fraction = day.plannedCount === 0 ? 0 : day.completedCount / day.plannedCount;
           const complete = day.plannedCount > 0 && day.completedCount >= day.plannedCount;
-          const barColor = day.isFuture
-            ? theme.colors.fill
-            : complete
-              ? theme.colors.success
-              : theme.colors.accent;
+          const barColor = complete ? theme.colors.success : theme.colors.accent;
+          const label = day.isFuture
+            ? 'noch offen'
+            : day.plannedCount === 0
+              ? 'nichts geplant'
+              : `${day.completedCount} von ${day.plannedCount} erledigt`;
           return (
-            <View key={day.date} style={styles.weekColumn}>
+            <View
+              key={day.date}
+              style={styles.weekColumn}
+              accessible
+              accessibilityLabel={`${WEEKDAY_LONG[day.weekday]}${day.isToday ? ' (heute)' : ''}: ${label}`}
+            >
               <View style={[styles.barTrack, { height: maxHeight, backgroundColor: theme.colors.fill }]}>
-                <View
-                  style={{
-                    height: Math.max(6, fraction * maxHeight),
-                    backgroundColor: barColor,
-                    borderRadius: 6,
-                    width: '100%',
-                  }}
-                />
+                {/* No stub bar for days with nothing done: an empty track reads as empty. */}
+                {fraction > 0 ? (
+                  <View
+                    style={{
+                      height: Math.max(8, fraction * maxHeight),
+                      backgroundColor: barColor,
+                      borderRadius: 6,
+                      width: '100%',
+                    }}
+                  />
+                ) : null}
               </View>
+              <AppText variant="caption" color="secondaryText" maxFontSizeMultiplier={1.2}>
+                {day.isFuture || day.plannedCount === 0 ? '–' : `${day.completedCount}/${day.plannedCount}`}
+              </AppText>
               <AppText
                 variant="caption"
                 weight={day.isToday ? '700' : '400'}
@@ -106,14 +118,14 @@ export function ProgressScreen(): React.ReactElement {
         <StatTile
           icon="flame"
           value={`${overall.currentStreak}`}
-          label="Aktuelle Serie (Tage)"
-          color={theme.colors.warning}
+          label={pluralize(overall.currentStreak, 'Tag in Folge', 'Tage in Folge')}
+          color={theme.colors.warningText}
         />
         <StatTile
           icon="trending"
-          value={`${Math.round(overall.successRate * 100)}%`}
+          value={`${Math.round(overall.successRate * 100)} %`}
           label="Erfolgsquote (Woche)"
-          color={theme.colors.success}
+          color={theme.colors.successText}
         />
         <StatTile
           icon="award"
@@ -123,8 +135,8 @@ export function ProgressScreen(): React.ReactElement {
         />
         <StatTile
           icon="clock"
-          value={formatDuration(overall.averageDurationSeconds)}
-          label="Ø Dauer"
+          value={overall.averageDurationSeconds > 0 ? formatDuration(overall.averageDurationSeconds) : '—'}
+          label="Ø Dauer pro Routine"
           color={theme.colors.secondaryText}
         />
       </View>
@@ -152,10 +164,10 @@ export function ProgressScreen(): React.ReactElement {
                   {item.title}
                 </AppText>
                 <AppText variant="caption" color="secondaryText">
-                  {item.stats.completionCount}× ·{' '}
-                  {item.stats.averageDurationSeconds > 0
-                    ? formatDuration(item.stats.averageDurationSeconds)
-                    : '—'}
+                  {item.stats.requiredDays > 0
+                    ? `${Math.round(item.stats.successRate * 100)} % von ${item.stats.requiredDays} ${pluralize(item.stats.requiredDays, 'Tag', 'Tagen')}`
+                    : 'Noch kein Tag fällig'}
+                  {item.stats.averageDurationSeconds > 0 ? ` · Ø ${formatDuration(item.stats.averageDurationSeconds)}` : ''}
                 </AppText>
               </View>
               <ProgressBar progress={item.stats.successRate} color={resolveRoutineColor(item.color)} />

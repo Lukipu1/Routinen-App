@@ -31,6 +31,14 @@ describe('plan overrides', () => {
     expect(added?.startTimeOverride).toBe('08:00');
   });
 
+  it('planning a routine for a day lifts a skip and keeps a moved time', () => {
+    let overrides = skipRoutineForDay([], 'r', TODAY);
+    overrides = moveRoutineForDay(overrides, 'r', TODAY, '09:30');
+    overrides = addRoutineForDay(overrides, 'r', TODAY);
+    const result = findOverride(overrides, 'r', TODAY);
+    expect(result).toMatchObject({ added: true, skipped: false, startTimeOverride: '09:30' });
+  });
+
   it('upsert keeps a single record per (routine, date)', () => {
     let overrides = upsertOverride([], 'r', TODAY, { skipped: true });
     overrides = upsertOverride(overrides, 'r', TODAY, { paused: true });

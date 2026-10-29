@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, type StyleProp, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 
 import { useTheme } from '../../theme/ThemeProvider';
 
-interface CardProps {
+interface CardProps extends Omit<ViewProps, 'style'> {
   children: React.ReactNode;
   padded?: boolean;
   elevated?: boolean;
@@ -16,10 +16,13 @@ export function Card({
   padded = true,
   elevated = false,
   style,
+  ...rest
 }: CardProps): React.ReactElement {
   const theme = useTheme();
   return (
     <View
+      // A card with an accessibilityLabel is read as one unit by screen readers.
+      accessible={rest.accessibilityLabel !== undefined ? true : undefined}
       style={[
         {
           backgroundColor: elevated
@@ -31,6 +34,7 @@ export function Card({
         elevated ? theme.shadows.card : null,
         style,
       ]}
+      {...rest}
     >
       {children}
     </View>

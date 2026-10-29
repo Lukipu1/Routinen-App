@@ -58,3 +58,18 @@ export function validateRoutineDraft(draft: RoutineDraft): RoutineValidationResu
 
   return { valid: Object.keys(errors).length === 0, errors };
 }
+
+export type EditorPage = 1 | 2 | 3 | 4;
+
+/** Errors relevant to one wizard page, so "Weiter" and "Speichern" agree. */
+export function validateEditorPage(draft: RoutineDraft, page: EditorPage): string | null {
+  const { errors } = validateRoutineDraft(draft);
+  if (page === 1) return errors.title ?? null;
+  if (page === 2) {
+    if (errors.steps) return errors.steps;
+    if (errors.stepTitles) return 'Bitte gib jedem Schritt einen Namen.';
+    return null;
+  }
+  if (page === 3) return errors.schedule ?? null;
+  return null;
+}

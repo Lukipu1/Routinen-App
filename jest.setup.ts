@@ -72,8 +72,17 @@ jest.mock('expo-notifications', () => ({
   getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
   setNotificationHandler: jest.fn(),
   setNotificationChannelAsync: jest.fn(() => Promise.resolve()),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  getLastNotificationResponseAsync: jest.fn(() => Promise.resolve(null)),
   AndroidImportance: { DEFAULT: 3, HIGH: 4 },
   SchedulableTriggerInputTypes: { CALENDAR: 'calendar', DATE: 'date', DAILY: 'daily', WEEKLY: 'weekly' },
+}));
+
+// --- Keep awake (native-only) -----------------------------------------------
+jest.mock('expo-keep-awake', () => ({
+  useKeepAwake: jest.fn(),
+  activateKeepAwakeAsync: jest.fn(() => Promise.resolve()),
+  deactivateKeepAwake: jest.fn(() => Promise.resolve()),
 }));
 
 // --- AsyncStorage ------------------------------------------------------------

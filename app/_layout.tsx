@@ -17,6 +17,7 @@ import { ErrorState } from '../src/components/common/StateViews';
 import { ToastHost } from '../src/components/common/Toast';
 import { useAppBootstrap } from '../src/hooks/useAppBootstrap';
 import { useDayRollover } from '../src/hooks/useDayRollover';
+import { useReminderResponse } from '../src/hooks/useReminderResponse';
 import { darkColors, lightColors } from '../src/theme/colors';
 import { ThemeProvider, useColorSchemeValue, useTheme } from '../src/theme/ThemeProvider';
 import { usePreferencesStore } from '../src/store/preferencesStore';
@@ -126,6 +127,7 @@ function RootNavigator(): React.ReactElement {
   const scheme = useColorSchemeValue();
   useOnboardingRedirect(ready);
   useDayRollover(ready);
+  useReminderResponse(ready);
 
   useEffect(() => {
     // Hide the native splash as soon as there is something to show — a screen

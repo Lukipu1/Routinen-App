@@ -10,3 +10,4 @@ export { usePreferences, useUpdatePreferences, useReducedMotion } from './usePre
 export { useAppBootstrap } from './useAppBootstrap';
 export type { BootstrapState } from './useAppBootstrap';
 export { useDayRollover } from './useDayRollover';
+export { useReminderResponse } from './useReminderResponse';

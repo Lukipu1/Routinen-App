@@ -95,3 +95,16 @@ export async function clearLiveExecutionsForRoutineDate(
     dateISO,
   );
 }
+
+/** Removes every run of a routine on a day, whatever its status. */
+export async function deleteExecutionsForRoutineDate(
+  routineId: string,
+  dateISO: ISODateString,
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'DELETE FROM executions WHERE routine_id = ? AND scheduled_date = ?;',
+    routineId,
+    dateISO,
+  );
+}

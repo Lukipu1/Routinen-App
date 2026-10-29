@@ -11,6 +11,7 @@ import { useToast } from '../../components/common/Toast';
 import { resolveRoutineColor } from '../../constants/colors';
 import type { PlannedRoutine } from '../../types/planning';
 import type { Routine } from '../../types/routine';
+import { formatDuration } from '../../utils/format';
 import { nowISO } from '../../utils/datetime';
 import { useAppStore } from '../../store/appStore';
 
@@ -31,6 +32,7 @@ export function PlannedActionsSheet({
   const moveForToday = useAppStore((s) => s.moveRoutineForToday);
   const saveRoutine = useAppStore((s) => s.saveRoutine);
   const skipForToday = useAppStore((s) => s.skipRoutineForToday);
+  const undoCompletion = useAppStore((s) => s.undoCompletionForToday);
   const [moving, setMoving] = useState(false);
   const [moveTime, setMoveTime] = useState('08:00');
 
@@ -43,7 +45,7 @@ export function PlannedActionsSheet({
     return <BottomSheet visible={false} onClose={close} />;
   }
 
-  const { routine, status } = planned;
+  const { routine, status, completion } = planned;
   const accent = resolveRoutineColor(routine.color);
   const isDone = status === 'completed';
   const isSkipped = status === 'skipped';
@@ -51,7 +53,7 @@ export function PlannedActionsSheet({
   const isRunning = status === 'active' || status === 'paused';
   const startLabel = isRunning
     ? 'Fortsetzen'
-    : isAbandoned
+    : isDone || isAbandoned
       ? 'Erneut starten'
       : status === 'missed' || status === 'overdue'
         ? 'Nachholen'
@@ -80,6 +82,12 @@ export function PlannedActionsSheet({
     close();
   };
 
+  const undo = async (): Promise<void> => {
+    await undoCompletion(routine.id);
+    toast('Abschluss zurückgenommen');
+    close();
+  };
+
   return (
     <BottomSheet visible onClose={close} title={routine.title}>
       <View style={{ gap: 10 }}>
@@ -95,13 +103,20 @@ export function PlannedActionsSheet({
           </>
         ) : (
           <>
-            {!isDone ? (
-              <PrimaryButton
-                title={startLabel}
-                iconName="play"
-                onPress={() => onStart(planned)}
-                accentColor={accent}
-              />
+            {isDone && completion ? (
+              <AppText variant="callout" color="secondaryText">
+                Heute erledigt · {formatDuration(completion.durationInSeconds)} ·{' '}
+                {completion.completedSteps} von {completion.totalSteps} Schritten
+              </AppText>
+            ) : null}
+            <PrimaryButton
+              title={startLabel}
+              iconName="play"
+              onPress={() => onStart(planned)}
+              accentColor={accent}
+            />
+            {isDone ? (
+              <SecondaryButton title="Abschluss zurücknehmen" iconName="arrowLeft" onPress={undo} />
             ) : null}
             {!isDone ? (
               <SecondaryButton
@@ -113,7 +128,7 @@ export function PlannedActionsSheet({
                 }}
               />
             ) : null}
-            {!isDone && !isAbandoned ? (
+            {!isDone && !isAbandoned && !isRunning ? (
               <SecondaryButton
                 title={isSkipped ? 'Wieder einplanen' : 'Für heute überspringen'}
                 iconName={isSkipped ? 'check' : 'skip'}

@@ -49,7 +49,26 @@ export const usePreferencesStore = create<PreferencesState>()(
     {
       name: PREFERENCES_STORAGE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
+      version: 2,
       partialize: (state) => ({ preferences: state.preferences }),
+      // Keys added in a later version get their default; keys we dropped
+      // (e.g. the never-working "Töne" switch) are discarded.
+      migrate: (persisted) => {
+        const stored = (persisted as { preferences?: Partial<UserPreferences> } | undefined)
+          ?.preferences;
+        const next: Partial<UserPreferences> = {};
+        for (const key of Object.keys(DEFAULT_PREFERENCES) as (keyof UserPreferences)[]) {
+          if (stored && stored[key] !== undefined) {
+            (next as Record<string, unknown>)[key] = stored[key];
+          }
+        }
+        return { preferences: { ...DEFAULT_PREFERENCES, ...next } };
+      },
+      merge: (persisted, current) => {
+        const stored = (persisted as { preferences?: Partial<UserPreferences> } | undefined)
+          ?.preferences;
+        return { ...current, preferences: { ...DEFAULT_PREFERENCES, ...stored } };
+      },
       onRehydrateStorage: () => (state) => {
         if (state) {
           applySideEffects(state.preferences);

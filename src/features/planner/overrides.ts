@@ -68,15 +68,22 @@ export function pauseRoutineForDay(
   return upsertOverride(overrides, routineId, date, { paused });
 }
 
-/** Adds a routine to a specific day ad-hoc, outside its recurrence. */
+/**
+ * Adds a routine to a specific day ad-hoc, outside its recurrence. Planning a
+ * routine also lifts a skip/pause for that day, and an explicitly chosen time
+ * wins over one set earlier; without a new time the existing one is kept.
+ */
 export function addRoutineForDay(
   overrides: PlanOverride[],
   routineId: string,
   date: ISODateString,
-  startTime: TimeString | null = null,
+  startTime?: TimeString | null,
 ): PlanOverride[] {
+  const existing = findOverride(overrides, routineId, date);
   return upsertOverride(overrides, routineId, date, {
     added: true,
-    startTimeOverride: startTime,
+    skipped: false,
+    paused: false,
+    startTimeOverride: startTime === undefined ? (existing?.startTimeOverride ?? null) : startTime,
   });
 }

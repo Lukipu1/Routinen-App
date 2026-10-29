@@ -65,3 +65,9 @@ export async function getCompletionsInRange(
   );
   return rows.map(rowToCompletion);
 }
+
+/** Removes the completion of a routine on a day (used by "Rückgängig"). */
+export async function deleteCompletion(routineId: string, dateISO: ISODateString): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync('DELETE FROM completions WHERE routine_id = ? AND date = ?;', routineId, dateISO);
+}

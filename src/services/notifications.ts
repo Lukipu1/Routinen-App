@@ -1,39 +1,59 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
-import type { Weekday } from '../types/common';
-import type { Routine } from '../types/routine';
-import { timeToMinutes } from '../utils/datetime';
+import type { ReminderOccurrence } from '../features/planner/reminders';
 
 /**
- * Local notification scheduling for routine reminders. Everything is wrapped so
- * a notification failure can never block the app. Reminders are tagged with the
- * routine id in their payload so they can be cancelled without a mapping table.
+ * Local notifications: routine reminders (planned per day by the reminder
+ * planner) and a single "step finished" alert while a timed step runs in the
+ * background. Everything is wrapped so a notification failure can never block
+ * the app. Each notification carries a `kind` so they can be managed without
+ * a mapping table.
  */
 
-const ANDROID_CHANNEL_ID = 'routine-reminders';
+const REMINDER_CHANNEL_ID = 'routine-reminders';
+const STEP_CHANNEL_ID = 'step-alerts';
+
+export type NotificationKind = 'reminder' | 'step';
+
+export interface NotificationPayload extends Record<string, unknown> {
+  kind: NotificationKind;
+  routineId: string;
+  /** Calendar day a reminder belongs to. */
+  dateISO?: string;
+}
 
 let handlerConfigured = false;
 
-/** Configures the foreground handler and Android channel. Safe to call twice. */
+/** Configures the foreground handler and Android channels. Safe to call twice. */
 export async function configureNotifications(): Promise<void> {
   if (!handlerConfigured) {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
+      handleNotification: async (notification) => {
+        const data = notification.request.content.data as Partial<NotificationPayload> | undefined;
+        // While the run screen is open the step alert is redundant as a banner;
+        // the on-screen countdown and haptic already cover it.
+        const suppressBanner = data?.kind === 'step' && AppState.currentState === 'active';
+        return {
+          shouldShowAlert: !suppressBanner,
+          shouldPlaySound: !suppressBanner,
+          shouldSetBadge: false,
+          shouldShowBanner: !suppressBanner,
+          shouldShowList: true,
+        };
+      },
     });
     handlerConfigured = true;
   }
   if (Platform.OS === 'android') {
     try {
-      await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+      await Notifications.setNotificationChannelAsync(REMINDER_CHANNEL_ID, {
         name: 'Routine-Erinnerungen',
         importance: Notifications.AndroidImportance.DEFAULT,
+      });
+      await Notifications.setNotificationChannelAsync(STEP_CHANNEL_ID, {
+        name: 'Timer-Ende',
+        importance: Notifications.AndroidImportance.HIGH,
       });
     } catch {
       // Channel setup is best-effort.
@@ -60,119 +80,94 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 }
 
-/** JS weekday (0=Sun) → expo weekly trigger weekday (1=Sun). */
-function toExpoWeekday(weekday: Weekday): number {
-  return weekday + 1;
-}
-
-interface ReminderSlot {
-  weekday: Weekday;
-  hour: number;
-  minute: number;
-}
-
-/** Computes the concrete weekly reminder slots for a routine. */
-export function computeReminderSlots(routine: Routine): ReminderSlot[] {
-  const { schedule, reminder } = routine;
-  if (
-    !reminder.enabled ||
-    !routine.isActive ||
-    !schedule.enabled ||
-    schedule.flexible ||
-    schedule.startTime === null
-  ) {
-    return [];
-  }
-
-  const startMinutes = timeToMinutes(schedule.startTime);
-  const slots: ReminderSlot[] = [];
-
-  const buildSlot = (weekday: Weekday, offsetMinutes: number): ReminderSlot => {
-    let absolute = startMinutes + offsetMinutes;
-    let dayShift = 0;
-    while (absolute < 0) {
-      absolute += 24 * 60;
-      dayShift -= 1;
-    }
-    while (absolute >= 24 * 60) {
-      absolute -= 24 * 60;
-      dayShift += 1;
-    }
-    const shiftedWeekday = (((weekday + dayShift) % 7) + 7) % 7;
-    return {
-      weekday: shiftedWeekday as Weekday,
-      hour: Math.floor(absolute / 60),
-      minute: absolute % 60,
-    };
-  };
-
-  for (const weekday of schedule.weekdays) {
-    slots.push(buildSlot(weekday, -reminder.minutesBefore));
-    if (reminder.secondReminderMinutes !== null) {
-      slots.push(buildSlot(weekday, reminder.secondReminderMinutes));
-    }
-  }
-  return slots;
-}
-
-export async function cancelRoutineReminders(routineId: string): Promise<void> {
+async function cancelByKind(kind: NotificationKind): Promise<void> {
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     await Promise.all(
       scheduled
-        .filter((n) => n.content.data?.routineId === routineId)
+        .filter((n) => (n.content.data as Partial<NotificationPayload> | undefined)?.kind === kind)
         .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
     );
   } catch {
-    // Ignore — reminders are non-critical.
+    // Ignore — notifications are non-critical.
   }
 }
 
-/** Cancels then reschedules all reminders for a routine. */
-export async function scheduleRoutineReminders(routine: Routine): Promise<void> {
-  await cancelRoutineReminders(routine.id);
-  const slots = computeReminderSlots(routine);
-  if (slots.length === 0) return;
-  try {
-    await Promise.all(
-      slots.map((slot) =>
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: routine.title,
-            body: 'Zeit für deine Routine.',
-            data: { routineId: routine.id },
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-            weekday: toExpoWeekday(slot.weekday),
-            hour: slot.hour,
-            minute: slot.minute,
-            channelId: ANDROID_CHANNEL_ID,
-          },
-        }),
-      ),
-    );
-  } catch {
-    // Ignore scheduling errors.
-  }
-}
-
-/** Reschedules reminders for every routine (e.g. after toggling the setting). */
-export async function rescheduleAllReminders(routines: Routine[]): Promise<void> {
-  try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-  } catch {
-    // Ignore.
-  }
-  for (const routine of routines) {
-    await scheduleRoutineReminders(routine);
+/**
+ * Replaces all scheduled reminders with the given occurrences (one-shot date
+ * triggers). Called whenever the plan changes and on every app start, so the
+ * rolling window stays fresh and single-day changes are respected.
+ */
+export async function syncReminders(occurrences: ReminderOccurrence[]): Promise<void> {
+  await cancelByKind('reminder');
+  for (const occurrence of occurrences) {
+    const payload: NotificationPayload = {
+      kind: 'reminder',
+      routineId: occurrence.routineId,
+      dateISO: occurrence.dateISO,
+    };
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: occurrence.title,
+          body: 'Zeit für deine Routine. Tippe, um sie zu starten.',
+          data: payload,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: occurrence.fireAt,
+          channelId: REMINDER_CHANNEL_ID,
+        },
+      });
+    } catch {
+      // Ignore scheduling errors for a single reminder.
+    }
   }
 }
 
 export async function cancelAllReminders(): Promise<void> {
+  await cancelByKind('reminder');
+}
+
+/**
+ * Schedules the one alert for the end of the current timed step, replacing
+ * any previous one. Pass `null` to just cancel (step changed, paused, left).
+ */
+export async function syncStepEndAlert(
+  alert: { routineId: string; routineTitle: string; stepTitle: string; at: Date } | null,
+): Promise<void> {
+  await cancelByKind('step');
+  if (!alert || alert.at.getTime() <= Date.now()) return;
+  const payload: NotificationPayload = { kind: 'step', routineId: alert.routineId };
   try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: alert.routineTitle,
+        body: `„${alert.stepTitle}“ ist fertig – weiter geht’s.`,
+        data: payload,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: alert.at,
+        channelId: STEP_CHANNEL_ID,
+      },
+    });
   } catch {
     // Ignore.
   }
 }
+
+/** Extracts our payload from a tapped notification, if it is one of ours. */
+export function payloadFromResponse(
+  response: Notifications.NotificationResponse,
+): NotificationPayload | null {
+  const data = response.notification.request.content.data as
+    | Partial<NotificationPayload>
+    | undefined;
+  if (!data || typeof data.routineId !== 'string') return null;
+  if (data.kind !== 'reminder' && data.kind !== 'step') return null;
+  return { kind: data.kind, routineId: data.routineId, dateISO: data.dateISO };
+}
+
+export const addNotificationResponseListener = Notifications.addNotificationResponseReceivedListener;
+export const getLastNotificationResponse = Notifications.getLastNotificationResponseAsync;

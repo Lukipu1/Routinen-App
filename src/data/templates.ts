@@ -120,9 +120,20 @@ function templateSteps(template: RoutineTemplate): RoutineStepDraft[] {
   }));
 }
 
+export interface TemplateOptions {
+  /** Overrides the template's fixed start time (e.g. the user's day start). */
+  startTime?: TimeString;
+  /** Turns the reminder on (e.g. when notifications were just allowed). */
+  reminderEnabled?: boolean;
+}
+
 /** Builds an editable draft from a template so the user can tweak it. */
-export function templateToDraft(template: RoutineTemplate): RoutineDraft {
+export function templateToDraft(
+  template: RoutineTemplate,
+  options: TemplateOptions = {},
+): RoutineDraft {
   const base = createEmptyDraft();
+  const startTime = template.flexible ? null : (options.startTime ?? template.startTime);
   return {
     ...base,
     title: template.title,
@@ -133,20 +144,24 @@ export function templateToDraft(template: RoutineTemplate): RoutineDraft {
     schedule: {
       enabled: true,
       weekdays: template.weekdays,
-      startTime: template.startTime,
+      startTime,
       flexible: template.flexible,
       timeWindow: null,
       startDate: todayISO(),
       endDate: null,
     },
-    reminder: { ...DEFAULT_REMINDER },
+    reminder: { ...DEFAULT_REMINDER, enabled: options.reminderEnabled ?? DEFAULT_REMINDER.enabled },
     isActive: true,
   };
 }
 
 /** Builds a full routine from a template. */
-export function templateToRoutine(template: RoutineTemplate, now: Date = new Date()): Routine {
-  return routineFromDraft(templateToDraft(template), now);
+export function templateToRoutine(
+  template: RoutineTemplate,
+  now: Date = new Date(),
+  options: TemplateOptions = {},
+): Routine {
+  return routineFromDraft(templateToDraft(template, options), now);
 }
 
 export function findTemplate(key: string): RoutineTemplate | undefined {

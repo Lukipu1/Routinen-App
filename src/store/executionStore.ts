@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import * as db from '../database';
 import * as engine from '../features/execution/executionLogic';
 import { haptics } from '../services/haptics';
+import { syncStepEndAlert } from '../services/notifications';
 import type { ISODateString } from '../types/common';
 import type { RoutineCompletion } from '../types/completion';
 import type { RoutineExecution } from '../types/execution';
@@ -21,10 +22,16 @@ interface ExecutionState {
   attach: (routine: Routine, execution: RoutineExecution) => Promise<void>;
   completeStep: () => Promise<void>;
   skipStep: () => Promise<void>;
+  /** Undo for an accidental "Erledigt"/"Überspringen": back to the previous step. */
+  goBack: () => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
   addTime: (seconds: number) => Promise<void>;
   abandon: () => Promise<void>;
+  /** Takes back a just-finished run so its last step can be redone. */
+  reopen: () => Promise<void>;
+  /** Pauses the run and leaves the screen; it stays resumable from "Heute". */
+  leave: () => Promise<void>;
   clear: () => void;
 }
 
@@ -44,6 +51,27 @@ async function persist(execution: RoutineExecution): Promise<void> {
   await useAppStore.getState().applyExecutionUpdate(execution);
 }
 
+/** Keeps the single "step finished" alert aligned with the current step. */
+function syncAlert(routine: Routine | null, execution: RoutineExecution | null): void {
+  if (!routine || !execution || execution.status !== 'active') {
+    void syncStepEndAlert(null);
+    return;
+  }
+  const now = new Date();
+  const step = engine.currentStep(routine, execution);
+  const remaining = engine.stepRemainingSeconds(routine, execution, now);
+  if (!step || remaining === null || remaining <= 0) {
+    void syncStepEndAlert(null);
+    return;
+  }
+  void syncStepEndAlert({
+    routineId: routine.id,
+    routineTitle: routine.title,
+    stepTitle: step.title,
+    at: new Date(now.getTime() + remaining * 1000),
+  });
+}
+
 export const useExecutionStore = create<ExecutionState>((set, get) => {
   /** Applies a transition: show it immediately, then persist and finalize if done. */
   async function apply(
@@ -53,6 +81,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => {
     feedback?: () => Promise<void>,
   ): Promise<void> {
     set({ execution: next });
+    syncAlert(routine, next);
     await persist(next);
     if (feedback) void feedback();
     if (next.status === 'completed' || next.status === 'abandoned') {
@@ -78,6 +107,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => {
         await db.clearLiveExecutionsForRoutineDate(routine.id, dateISO);
         const execution = engine.startExecution(routine, dateISO, now);
         set({ routine, execution, finished: null });
+        syncAlert(routine, execution);
         await persist(execution);
         void haptics.medium();
       }),
@@ -96,6 +126,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => {
         set({ routine, execution: live, finished: null });
         const reconciled = engine.reconcileExecution(routine, live, now);
         if (reconciled !== live) await apply(routine, reconciled, now);
+        else syncAlert(routine, live);
         return true;
       }),
 
@@ -105,6 +136,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => {
         set({ routine, execution, finished: null });
         const reconciled = engine.reconcileExecution(routine, execution, now);
         if (reconciled !== execution) await apply(routine, reconciled, now);
+        else syncAlert(routine, execution);
       }),
 
     completeStep: () =>
@@ -121,6 +153,15 @@ export const useExecutionStore = create<ExecutionState>((set, get) => {
         if (!routine || !execution || execution.status === 'completed') return;
         const now = new Date();
         await apply(routine, engine.skipStep(routine, execution, now), now, haptics.light);
+      }),
+
+    goBack: () =>
+      enqueue(async () => {
+        const { routine, execution } = get();
+        if (!routine || !execution) return;
+        const now = new Date();
+        const next = engine.goBackStep(routine, execution, now);
+        if (next !== execution) await apply(routine, next, now, haptics.light);
       }),
 
     pause: () =>
@@ -158,6 +199,33 @@ export const useExecutionStore = create<ExecutionState>((set, get) => {
         await apply(routine, engine.abandonExecution(execution, now), now);
       }),
 
-    clear: () => set({ routine: null, execution: null, finished: null }),
+    reopen: () =>
+      enqueue(async () => {
+        const { routine, execution } = get();
+        if (!routine || !execution || execution.status !== 'completed') return;
+        const now = new Date();
+        const next = engine.reopenLastStep(routine, execution, now);
+        if (next === execution) return;
+        // The completion was already recorded; take it back with the run.
+        await useAppStore.getState().removeCompletion(routine.id, execution.scheduledDate);
+        set({ finished: null });
+        await apply(routine, next, now);
+      }),
+
+    leave: () =>
+      enqueue(async () => {
+        const { routine, execution } = get();
+        if (routine && execution && execution.status === 'active') {
+          const paused = engine.pauseExecution(execution, new Date());
+          await persist(paused);
+        }
+        void syncStepEndAlert(null);
+        set({ routine: null, execution: null, finished: null });
+      }),
+
+    clear: () => {
+      void syncStepEndAlert(null);
+      set({ routine: null, execution: null, finished: null });
+    },
   };
 });

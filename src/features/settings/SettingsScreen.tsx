@@ -1,8 +1,10 @@
 import Constants from 'expo-constants';
-import React, { useState } from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { AppHeader } from '../../components/common/AppHeader';
+import { AppSwitch } from '../../components/common/AppSwitch';
 import { AppText } from '../../components/common/AppText';
 import { BottomSheet } from '../../components/common/BottomSheet';
 import { Card } from '../../components/common/Card';
@@ -15,12 +17,12 @@ import { useToast } from '../../components/common/Toast';
 import { usePreferences, useUpdatePreferences } from '../../hooks/usePreferences';
 import {
   cancelAllReminders,
+  getNotificationPermission,
   requestNotificationPermission,
-  rescheduleAllReminders,
 } from '../../services/notifications';
 import type { ThemePreference } from '../../theme/types';
 import type { WeekStart } from '../../types/common';
-import { useAppStore } from '../../store/appStore';
+import { requestReminderSync, useAppStore } from '../../store/appStore';
 import { useTheme } from '../../theme/ThemeProvider';
 
 interface SegmentOption<T> {
@@ -32,14 +34,20 @@ function Segmented<T extends string | number>({
   options,
   value,
   onChange,
+  accessibilityLabel,
 }: {
   options: SegmentOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  accessibilityLabel: string;
 }): React.ReactElement {
   const theme = useTheme();
   return (
-    <View style={[styles.segmented, { backgroundColor: theme.colors.fill, borderRadius: theme.radii.sm }]}>
+    <View
+      style={[styles.segmented, { backgroundColor: theme.colors.fill, borderRadius: theme.radii.sm }]}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={accessibilityLabel}
+    >
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -48,6 +56,9 @@ function Segmented<T extends string | number>({
             onPress={() => onChange(option.value)}
             haptic="selection"
             scaleTo={0.97}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            accessibilityLabel={option.label}
             style={[
               styles.segment,
               selected
@@ -55,7 +66,7 @@ function Segmented<T extends string | number>({
                 : null,
             ]}
           >
-            <AppText variant="callout" weight={selected ? '600' : '400'}>
+            <AppText variant="callout" weight={selected ? '600' : '400'} maxFontSizeMultiplier={1.4}>
               {option.label}
             </AppText>
           </PressableScale>
@@ -70,17 +81,33 @@ export function SettingsScreen(): React.ReactElement {
   const toast = useToast();
   const preferences = usePreferences();
   const update = useUpdatePreferences();
-  const routines = useAppStore((s) => s.routines);
   const resetSampleData = useAppStore((s) => s.resetSampleData);
   const clearAllData = useAppStore((s) => s.clearAllData);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [askNotifications, setAskNotifications] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const version = Constants.expoConfig?.version ?? '1.0.0';
 
-  const switchColors = { true: theme.colors.accent, false: theme.colors.fill };
+  // The switch must tell the truth: if the OS permission was revoked in the
+  // meantime, turn the preference off instead of pretending reminders work.
+  useFocusEffect(
+    useCallback(() => {
+      if (!preferences.notificationsEnabled) return;
+      let active = true;
+      void getNotificationPermission().then((granted) => {
+        if (active && !granted) {
+          update({ notificationsEnabled: false });
+          toast('Benachrichtigungen sind im System deaktiviert', 'default');
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }, [preferences.notificationsEnabled, update, toast]),
+  );
 
   const enableNotifications = async (): Promise<void> => {
     setAskNotifications(false);
@@ -91,7 +118,7 @@ export function SettingsScreen(): React.ReactElement {
       return;
     }
     update({ notificationsEnabled: true });
-    await rescheduleAllReminders(routines);
+    requestReminderSync();
     toast('Benachrichtigungen aktiv', 'success');
   };
 
@@ -104,6 +131,19 @@ export function SettingsScreen(): React.ReactElement {
     }
   };
 
+  const runGuarded = async (action: () => Promise<void>, success: string): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action();
+      toast(success, 'success');
+    } catch {
+      toast('Das hat leider nicht geklappt', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <ScreenContainer scroll>
       <AppHeader title="Einstellungen" />
@@ -113,6 +153,7 @@ export function SettingsScreen(): React.ReactElement {
         <View style={styles.stack}>
           <AppText variant="body">Design</AppText>
           <Segmented<ThemePreference>
+            accessibilityLabel="Design"
             options={[
               { label: 'Hell', value: 'light' },
               { label: 'Dunkel', value: 'dark' },
@@ -125,6 +166,7 @@ export function SettingsScreen(): React.ReactElement {
         <View style={[styles.stack, { marginTop: theme.spacing.base }]}>
           <AppText variant="body">Wochenbeginn</AppText>
           <Segmented<WeekStart>
+            accessibilityLabel="Wochenbeginn"
             options={[
               { label: 'Montag', value: 1 },
               { label: 'Sonntag', value: 0 },
@@ -139,46 +181,37 @@ export function SettingsScreen(): React.ReactElement {
       <Card style={styles.group}>
         <SettingRow
           label="Benachrichtigungen"
-          description="Erinnerungen vor dem Start"
+          description="Erinnerungen vor dem Start und am Ende eines Timers"
           icon="bell"
           right={
-            <Switch
+            <AppSwitch
               value={preferences.notificationsEnabled}
               onValueChange={onToggleNotifications}
-              trackColor={switchColors}
+              accessibilityLabel="Benachrichtigungen"
             />
           }
         />
         <SettingRow
           label="Haptik"
+          description="Kurze Vibration beim Tippen und Erledigen"
           icon="sparkles"
           right={
-            <Switch
+            <AppSwitch
               value={preferences.hapticsEnabled}
               onValueChange={(hapticsEnabled) => update({ hapticsEnabled })}
-              trackColor={switchColors}
-            />
-          }
-        />
-        <SettingRow
-          label="Töne"
-          icon="bell"
-          right={
-            <Switch
-              value={preferences.soundsEnabled}
-              onValueChange={(soundsEnabled) => update({ soundsEnabled })}
-              trackColor={switchColors}
+              accessibilityLabel="Haptik"
             />
           }
         />
         <SettingRow
           label="Reduzierte Bewegungen"
+          description="Animationen abschalten"
           icon="activity"
           right={
-            <Switch
+            <AppSwitch
               value={preferences.reducedMotion}
               onValueChange={(reducedMotion) => update({ reducedMotion })}
-              trackColor={switchColors}
+              accessibilityLabel="Reduzierte Bewegungen"
             />
           }
         />
@@ -187,13 +220,16 @@ export function SettingsScreen(): React.ReactElement {
       <SectionHeader title="Daten" />
       <Card style={styles.group}>
         <SettingRow
-          label="Beispieldaten zurücksetzen"
+          label="Beispieldaten wiederherstellen"
+          description="Ersetzt alle Routinen und Verläufe durch die Beispiele"
           icon="copy"
+          destructive
           onPress={() => setConfirmReset(true)}
           right={<View />}
         />
         <SettingRow
           label="Alle Daten löschen"
+          description="Routinen, Planungen und Verläufe dauerhaft entfernen"
           icon="trash"
           destructive
           onPress={() => setConfirmClear(true)}
@@ -204,41 +240,45 @@ export function SettingsScreen(): React.ReactElement {
       <SectionHeader title="Info" />
       <Card style={styles.group}>
         <SettingRow label="Datenschutz" icon="checklist" onPress={() => setPrivacyOpen(true)} right={<View />} />
-        <SettingRow label="Version" icon="sparkles" right={<AppText variant="body" color="secondaryText">{version}</AppText>} />
+        <SettingRow
+          label="Version"
+          icon="sparkles"
+          right={
+            <AppText variant="body" color="secondaryText">
+              {version}
+            </AppText>
+          }
+        />
       </Card>
 
       <ConfirmationDialog
         visible={confirmReset}
-        title="Beispieldaten zurücksetzen?"
-        message="Alle aktuellen Routinen und Verläufe werden durch die Beispieldaten ersetzt."
-        confirmLabel="Zurücksetzen"
+        title="Beispieldaten wiederherstellen?"
+        message="Alle deine Routinen, Planungen und Verläufe werden gelöscht und durch die drei Beispielroutinen ersetzt. Das lässt sich nicht rückgängig machen."
+        confirmLabel="Alles ersetzen"
         destructive
-        onConfirm={async () => {
+        onConfirm={() => {
           setConfirmReset(false);
-          await resetSampleData();
-          toast('Beispieldaten wiederhergestellt', 'success');
+          void runGuarded(resetSampleData, 'Beispieldaten wiederhergestellt');
         }}
         onCancel={() => setConfirmReset(false)}
       />
-
       <ConfirmationDialog
         visible={confirmClear}
         title="Alle Daten löschen?"
         message="Alle Routinen, Planungen und Verläufe werden dauerhaft entfernt."
         confirmLabel="Alles löschen"
         destructive
-        onConfirm={async () => {
+        onConfirm={() => {
           setConfirmClear(false);
-          await clearAllData();
-          toast('Alle Daten gelöscht');
+          void runGuarded(clearAllData, 'Alle Daten gelöscht');
         }}
         onCancel={() => setConfirmClear(false)}
       />
-
       <ConfirmationDialog
         visible={askNotifications}
         title="Erinnerungen aktivieren?"
-        message="Routinen erinnern dich kurz vor dem Start – ganz ohne Konto und nur lokal auf diesem Gerät."
+        message="Routinen erinnern dich kurz vor dem Start, und ein Timer meldet sich, wenn er abläuft – ganz ohne Konto und nur lokal auf diesem Gerät."
         confirmLabel="Erlauben"
         cancelLabel="Später"
         onConfirm={enableNotifications}
@@ -249,7 +289,7 @@ export function SettingsScreen(): React.ReactElement {
         <AppText variant="body" color="secondaryText" style={{ marginBottom: 16 }}>
           Alle deine Routinen, Planungen und Fortschrittsdaten werden ausschließlich lokal auf
           diesem Gerät gespeichert. Es gibt kein Konto, keine Anmeldung und keine Übertragung an
-          externe Server.
+          externe Server. Benachrichtigungen werden vom Gerät selbst geplant.
         </AppText>
       </BottomSheet>
     </ScreenContainer>
@@ -269,6 +309,7 @@ const styles = StyleSheet.create({
   },
   segment: {
     flex: 1,
+    minHeight: 40,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,

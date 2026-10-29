@@ -15,13 +15,9 @@ import {
   pauseRoutineForDay,
   skipRoutineForDay,
 } from '../features/planner/overrides';
+import { planReminders } from '../features/planner/reminders';
 import { requiredRoutineIdsFromSchedule } from '../features/statistics/stats';
-import {
-  cancelAllReminders,
-  cancelRoutineReminders,
-  rescheduleAllReminders,
-  scheduleRoutineReminders,
-} from '../services/notifications';
+import { cancelAllReminders, syncReminders } from '../services/notifications';
 import type { ISODateString, TimeString } from '../types/common';
 import type { RoutineCompletion } from '../types/completion';
 import type { RoutineExecution } from '../types/execution';
@@ -59,6 +55,10 @@ interface AppState {
   addRoutineForToday: (routineId: string, startTime?: TimeString | null) => Promise<void>;
   applyExecutionUpdate: (execution: RoutineExecution) => Promise<void>;
   recordCompletion: (completion: RoutineCompletion) => Promise<void>;
+  /** Drops a routine's completion for a day (a run was reopened). */
+  removeCompletion: (routineId: string, dateISO: ISODateString) => Promise<void>;
+  /** "Rückgängig" for a finished routine: forgets today's runs and completion. */
+  undoCompletionForToday: (routineId: string) => Promise<void>;
   resetSampleData: () => Promise<void>;
   clearAllData: () => Promise<void>;
 }
@@ -67,20 +67,40 @@ function notificationsEnabled(): boolean {
   return usePreferencesStore.getState().preferences.notificationsEnabled;
 }
 
-async function syncReminders(routine: Routine): Promise<void> {
-  if (notificationsEnabled()) {
-    await scheduleRoutineReminders(routine);
-  } else {
-    await cancelRoutineReminders(routine.id);
-  }
+/** Days of reminders kept scheduled ahead of time. */
+const REMINDER_HORIZON_DAYS = 7;
+let reminderSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Re-plans the scheduled reminders from the current state. Debounced, since a
+ * burst of changes (e.g. finishing a run) touches several store fields in a
+ * row. Exposed so Settings can trigger it after enabling notifications.
+ */
+export function requestReminderSync(): void {
+  if (reminderSyncTimer) clearTimeout(reminderSyncTimer);
+  reminderSyncTimer = setTimeout(() => {
+    reminderSyncTimer = null;
+    void syncRemindersNow();
+  }, 300);
 }
 
-async function resyncAllReminders(routines: Routine[]): Promise<void> {
-  if (notificationsEnabled()) {
-    await rescheduleAllReminders(routines);
-  } else {
+export async function syncRemindersNow(): Promise<void> {
+  if (!notificationsEnabled()) {
     await cancelAllReminders();
+    return;
   }
+  const { routines, overrides, completions, today } = useAppStore.getState();
+  const now = new Date();
+  await syncReminders(
+    planReminders({
+      routines,
+      overrides,
+      completions,
+      fromISO: today,
+      days: REMINDER_HORIZON_DAYS,
+      now,
+    }),
+  );
 }
 
 function errorMessage(error: unknown): string {
@@ -174,6 +194,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     ]);
     set({ today, routines, overrides, completions, todayExecutions, dayPlans });
     await snapshotToday();
+    requestReminderSync();
   },
 
   ensureToday: async () => {
@@ -192,7 +213,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   saveRoutine: async (routine) => {
     await db.saveRoutine(routine);
-    await syncReminders(routine);
     const existingIndex = get().routines.findIndex((r) => r.id === routine.id);
     const routines =
       existingIndex >= 0
@@ -200,11 +220,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         : [...get().routines, routine];
     set({ routines });
     await snapshotToday();
+    requestReminderSync();
   },
 
   deleteRoutine: async (id) => {
     await db.deleteRoutine(id);
-    await cancelRoutineReminders(id);
     set({
       routines: get().routines.filter((r) => r.id !== id),
       overrides: get().overrides.filter((o) => o.routineId !== id),
@@ -214,6 +234,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         Object.entries(get().dayPlans).map(([date, ids]) => [date, ids.filter((r) => r !== id)]),
       ),
     });
+    requestReminderSync();
   },
 
   duplicateRoutine: async (id) => {
@@ -248,6 +269,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const changed = findOverride(next, routineId, today);
     if (changed) await db.saveOverride(changed);
     set({ overrides: next });
+    requestReminderSync();
   },
 
   skipRoutineForToday: async (routineId, skipped = true) => {
@@ -257,6 +279,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (changed) await db.saveOverride(changed);
     set({ overrides: next });
     await snapshotToday();
+    requestReminderSync();
   },
 
   pauseRoutineForToday: async (routineId, paused = true) => {
@@ -266,15 +289,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (changed) await db.saveOverride(changed);
     set({ overrides: next });
     await snapshotToday();
+    requestReminderSync();
   },
 
-  addRoutineForToday: async (routineId, startTime = null) => {
+  addRoutineForToday: async (routineId, startTime) => {
     const { overrides, today } = get();
     const next = addRoutineForDay(overrides, routineId, today, startTime);
     const changed = findOverride(next, routineId, today);
     if (changed) await db.saveOverride(changed);
     set({ overrides: next });
     await snapshotToday();
+    requestReminderSync();
   },
 
   applyExecutionUpdate: async (execution) => {
@@ -293,18 +318,41 @@ export const useAppStore = create<AppState>((set, get) => ({
       (c) => !(c.routineId === completion.routineId && c.date === completion.date),
     );
     set({ completions: [completion, ...others] });
+    requestReminderSync();
+  },
+
+  removeCompletion: async (routineId, dateISO) => {
+    await db.deleteCompletion(routineId, dateISO);
+    set({
+      completions: get().completions.filter(
+        (c) => !(c.routineId === routineId && c.date === dateISO),
+      ),
+    });
+    requestReminderSync();
+  },
+
+  undoCompletionForToday: async (routineId) => {
+    const { today } = get();
+    await db.deleteExecutionsForRoutineDate(routineId, today);
+    await db.deleteCompletion(routineId, today);
+    set({
+      completions: get().completions.filter(
+        (c) => !(c.routineId === routineId && c.date === today),
+      ),
+      todayExecutions: get().todayExecutions.filter((e) => e.routineId !== routineId),
+    });
+    requestReminderSync();
   },
 
   resetSampleData: async () => {
     await db.clearAllData();
     await insertSamples([]);
     await get().refresh();
-    await resyncAllReminders(get().routines);
   },
 
   clearAllData: async () => {
     await db.clearAllData();
-    await cancelAllReminders();
     set({ routines: [], overrides: [], completions: [], todayExecutions: [], dayPlans: {} });
+    await cancelAllReminders();
   },
 }));

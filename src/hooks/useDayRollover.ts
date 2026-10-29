@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
-import { useAppStore } from '../store/appStore';
+import { requestReminderSync, useAppStore } from '../store/appStore';
 
 /** Milliseconds until just after the next local midnight. */
 function msUntilNextMidnight(now: Date): number {
@@ -22,6 +22,8 @@ export function useDayRollover(enabled: boolean): void {
 
     const check = (): void => {
       void useAppStore.getState().ensureToday();
+      // Reminders are one-shot dates for a rolling window; keep it moving.
+      requestReminderSync();
     };
     const arm = (): void => {
       timer = setTimeout(() => {

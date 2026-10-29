@@ -2,7 +2,12 @@ import { makeRoutine, makeStep } from '../../../testing/factories';
 import {
   abandonExecution,
   addStepTime,
+  executionProgress,
   goBackStep,
+  isResumableRun,
+  isStepTimerFinished,
+  reconcileExecution,
+  remainingTotalSeconds,
   reopenLastStep,
   buildCompletion,
   completeStep,
@@ -182,5 +187,53 @@ describe('executionLogic', () => {
     expect(exec.status).toBe('abandoned');
     expect(completion.completed).toBe(false);
     expect(completion.completedSteps).toBe(1);
+  });
+
+  it('reports timer end, progress and remaining total time', () => {
+    const routine = routine3(); // 60 s, untimed, 30 s
+    let exec = startExecution(routine, '2026-07-22', T0);
+    expect(isStepTimerFinished(routine, exec, at(30))).toBe(false);
+    expect(isStepTimerFinished(routine, exec, at(60))).toBe(true);
+    expect(remainingTotalSeconds(routine, exec, at(30))).toBe(30 + 30);
+    expect(executionProgress(routine, exec)).toBe(0);
+    exec = completeStep(routine, exec, at(60));
+    expect(isStepTimerFinished(routine, exec, at(999))).toBe(false); // untimed step
+    expect(remainingTotalSeconds(routine, exec, at(70))).toBe(30);
+    expect(executionProgress(routine, exec)).toBeCloseTo(1 / 3);
+    exec = skipStep(routine, exec, at(80));
+    expect(executionProgress(routine, exec)).toBeCloseTo(2 / 3);
+  });
+
+  it('treats only recent or same-day live runs as resumable', () => {
+    const routine = routine3();
+    const today = '2026-07-22';
+    const live = startExecution(routine, today, T0);
+    expect(isResumableRun(live, today, at(10))).toBe(true);
+    const yesterdayRecent = { ...live, scheduledDate: '2026-07-21' };
+    expect(isResumableRun(yesterdayRecent, today, at(60 * 60))).toBe(true); // 1 h ago
+    expect(isResumableRun(yesterdayRecent, today, at(5 * 60 * 60))).toBe(false); // 5 h ago
+    const done = completeStep(routine, completeStep(routine, completeStep(routine, live, at(1)), at(2)), at(3));
+    expect(isResumableRun(done, today, at(4))).toBe(false);
+  });
+
+  it('reconciles a paused run with an edited routine', () => {
+    const routine = routine3();
+    let exec = startExecution(routine, '2026-07-22', T0);
+    exec = completeStep(routine, exec, at(10));
+    exec = pauseExecution(exec, at(20));
+    // Unchanged routine: nothing to do (same object back).
+    expect(reconcileExecution(routine, exec, at(30))).toBe(exec);
+    // First step removed: index shifts to the first unhandled step.
+    const edited = { ...routine, steps: routine.steps.slice(1) };
+    const aligned = reconcileExecution(edited, exec, at(30));
+    expect(aligned.currentStepIndex).toBe(0);
+    expect(aligned.completedStepIds).toEqual([]);
+    expect(aligned.stepStartedAt).toBeNull(); // still paused
+    // Every remaining step already handled: the run finishes.
+    const onlyDone = { ...routine, steps: routine.steps.slice(0, 1) };
+    expect(reconcileExecution(onlyDone, exec, at(30)).status).toBe('completed');
+    // Finished runs are left alone.
+    const abandoned = abandonExecution(exec, at(40));
+    expect(reconcileExecution(edited, abandoned, at(50))).toBe(abandoned);
   });
 });

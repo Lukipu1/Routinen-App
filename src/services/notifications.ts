@@ -2,6 +2,9 @@ import * as Notifications from 'expo-notifications';
 import { AppState, Platform } from 'react-native';
 
 import type { ReminderOccurrence } from '../features/planner/reminders';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('notifications');
 
 /**
  * Local notifications: routine reminders (planned per day by the reminder
@@ -55,8 +58,8 @@ export async function configureNotifications(): Promise<void> {
         name: 'Timer-Ende',
         importance: Notifications.AndroidImportance.HIGH,
       });
-    } catch {
-      // Channel setup is best-effort.
+    } catch (error) {
+      log.warn('channel setup failed', error);
     }
   }
 }
@@ -65,7 +68,8 @@ export async function getNotificationPermission(): Promise<boolean> {
   try {
     const { granted } = await Notifications.getPermissionsAsync();
     return granted;
-  } catch {
+  } catch (error) {
+    log.warn('permission check failed', error);
     return false;
   }
 }
@@ -75,7 +79,8 @@ export async function requestNotificationPermission(): Promise<boolean> {
   try {
     const { granted } = await Notifications.requestPermissionsAsync();
     return granted;
-  } catch {
+  } catch (error) {
+    log.warn('permission request failed', error);
     return false;
   }
 }
@@ -88,8 +93,8 @@ async function cancelByKind(kind: NotificationKind): Promise<void> {
         .filter((n) => (n.content.data as Partial<NotificationPayload> | undefined)?.kind === kind)
         .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
     );
-  } catch {
-    // Ignore — notifications are non-critical.
+  } catch (error) {
+    log.warn(`cancelling ${kind} notifications failed`, error);
   }
 }
 
@@ -119,8 +124,8 @@ export async function syncReminders(occurrences: ReminderOccurrence[]): Promise<
           channelId: REMINDER_CHANNEL_ID,
         },
       });
-    } catch {
-      // Ignore scheduling errors for a single reminder.
+    } catch (error) {
+      log.warn('scheduling a reminder failed', error);
     }
   }
 }
@@ -152,8 +157,8 @@ export async function syncStepEndAlert(
         channelId: STEP_CHANNEL_ID,
       },
     });
-  } catch {
-    // Ignore.
+  } catch (error) {
+    log.warn('scheduling the step alert failed', error);
   }
 }
 

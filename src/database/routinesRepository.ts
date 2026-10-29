@@ -1,8 +1,10 @@
 import type { Routine } from '../types/routine';
 import { getDatabase, withWriteTransaction } from './client';
 import {
+  mapValid,
   rowToRoutine,
   serialize,
+  validRoutine,
   type RoutineRow,
   type StepRow,
 } from './mappers';
@@ -24,7 +26,11 @@ export async function getAllRoutines(): Promise<Routine[]> {
   );
   const stepRows = await db.getAllAsync<StepRow>('SELECT * FROM routine_steps;');
   const stepsByRoutine = groupSteps(stepRows);
-  return routineRows.map((row) => rowToRoutine(row, stepsByRoutine.get(row.id) ?? []));
+  return mapValid(
+    routineRows,
+    (row) => rowToRoutine(row, stepsByRoutine.get(row.id) ?? []),
+    validRoutine,
+  );
 }
 
 export async function getRoutineById(id: string): Promise<Routine | null> {
@@ -35,7 +41,7 @@ export async function getRoutineById(id: string): Promise<Routine | null> {
     'SELECT * FROM routine_steps WHERE routine_id = ? ORDER BY position ASC;',
     id,
   );
-  return rowToRoutine(row, stepRows);
+  return validRoutine(rowToRoutine(row, stepRows));
 }
 
 /**
@@ -124,14 +130,4 @@ export async function deleteRoutine(id: string): Promise<void> {
   const db = await getDatabase();
   // Steps, executions, completions and overrides cascade via foreign keys.
   await db.runAsync('DELETE FROM routines WHERE id = ?;', id);
-}
-
-export async function setRoutineActive(id: string, isActive: boolean): Promise<void> {
-  const db = await getDatabase();
-  await db.runAsync(
-    'UPDATE routines SET is_active = ?, updated_at = ? WHERE id = ?;',
-    serialize.bool(isActive),
-    new Date().toISOString(),
-    id,
-  );
 }

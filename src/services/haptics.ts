@@ -1,5 +1,9 @@
 import * as Haptics from 'expo-haptics';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('haptics');
+
 /**
  * Thin, preference-gated wrapper around expo-haptics. The preferences store
  * calls `setHapticsEnabled` so this module can stay free of store imports
@@ -15,8 +19,9 @@ async function safe(run: () => Promise<void>): Promise<void> {
   if (!hapticsEnabled) return;
   try {
     await run();
-  } catch {
-    // Haptics are non-critical; ignore unsupported devices / errors.
+  } catch (error) {
+    // Haptics are non-critical: unsupported devices just stay silent.
+    log.debug('haptic feedback unavailable', error);
   }
 }
 

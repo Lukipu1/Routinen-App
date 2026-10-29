@@ -7,12 +7,21 @@
     "icon": "./assets/icon.png",
     "scheme": "routinen",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "primaryColor": "#0A84FF",
     "ios": {
+      "bundleIdentifier": "de.routinen.app",
+      "buildNumber": "1",
       "supportsTablet": true,
-      "userInterfaceStyle": "automatic"
+      "userInterfaceStyle": "automatic",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDevelopmentRegion": "de",
+        "CFBundleLocalizations": ["de"]
+      }
     },
     "android": {
+      "package": "de.routinen.app",
+      "versionCode": 1,
       "userInterfaceStyle": "automatic",
       "adaptiveIcon": {
         "backgroundColor": "#0A84FF",
@@ -20,7 +29,6 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -44,10 +52,12 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
-          "color": "#0A84FF"
+          "icon": "./assets/notification-icon.png",
+          "color": "#0A84FF",
+          "defaultChannel": "routine-reminders"
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": false

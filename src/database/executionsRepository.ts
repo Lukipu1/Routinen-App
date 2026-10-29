@@ -1,7 +1,7 @@
 import type { ISODateString } from '../types/common';
 import type { RoutineExecution } from '../types/execution';
 import { getDatabase } from './client';
-import { rowToExecution, serialize, type ExecutionRow } from './mappers';
+import { mapValid, rowToExecution, serialize, validExecution, type ExecutionRow } from './mappers';
 
 export async function saveExecution(execution: RoutineExecution): Promise<void> {
   const db = await getDatabase();
@@ -43,7 +43,7 @@ export async function getExecutionsForDate(
     'SELECT * FROM executions WHERE scheduled_date = ? ORDER BY started_at ASC;',
     dateISO,
   );
-  return rows.map(rowToExecution);
+  return mapValid(rows, rowToExecution, validExecution);
 }
 
 /** Every in-progress or paused run, regardless of day (newest first). */
@@ -52,35 +52,7 @@ export async function getLiveExecutions(): Promise<RoutineExecution[]> {
   const rows = await db.getAllAsync<ExecutionRow>(
     "SELECT * FROM executions WHERE status IN ('active', 'paused') ORDER BY started_at DESC;",
   );
-  return rows.map(rowToExecution);
-}
-
-/** The single in-progress or paused run for a day, used to restore state on launch. */
-export async function getLiveExecution(dateISO: ISODateString): Promise<RoutineExecution | null> {
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<ExecutionRow>(
-    "SELECT * FROM executions WHERE scheduled_date = ? AND status IN ('active', 'paused') ORDER BY started_at DESC LIMIT 1;",
-    dateISO,
-  );
-  return row ? rowToExecution(row) : null;
-}
-
-export async function getExecutionForRoutineDate(
-  routineId: string,
-  dateISO: ISODateString,
-): Promise<RoutineExecution | null> {
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<ExecutionRow>(
-    'SELECT * FROM executions WHERE routine_id = ? AND scheduled_date = ? ORDER BY started_at DESC LIMIT 1;',
-    routineId,
-    dateISO,
-  );
-  return row ? rowToExecution(row) : null;
-}
-
-export async function deleteExecution(id: string): Promise<void> {
-  const db = await getDatabase();
-  await db.runAsync('DELETE FROM executions WHERE id = ?;', id);
+  return mapValid(rows, rowToExecution, validExecution);
 }
 
 /** Removes any lingering active/paused run for a routine on a day (dedupe). */

@@ -1,29 +1,10 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 import { PrimaryButton } from './Buttons';
-
-/** Centered loading spinner with optional label. */
-export function LoadingState({ label }: { label?: string }): React.ReactElement {
-  const theme = useTheme();
-  return (
-    <View style={styles.centered}>
-      <ActivityIndicator color={theme.colors.accent} size="large" />
-      {label ? (
-        <AppText
-          variant="callout"
-          color="secondaryText"
-          style={{ marginTop: theme.spacing.md }}
-        >
-          {label}
-        </AppText>
-      ) : null}
-    </View>
-  );
-}
 
 interface ErrorStateProps {
   title?: string;

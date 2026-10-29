@@ -84,6 +84,7 @@ export const executionSchema = z.object({
   status: z.enum(['active', 'paused', 'completed', 'abandoned']),
   stepStartedAt: z.string().nullable(),
   accumulatedStepSeconds: z.number().min(0),
+  activeSeconds: z.number().min(0).default(0),
 });
 
 export const completionSchema = z.object({

@@ -149,6 +149,33 @@ describe('completions and overrides', () => {
     expect(all[0]).toMatchObject({ skipped: false, startTimeOverride: '09:30' });
   });
 
+  it('deletes a single completion and all runs of a routine on a day', async () => {
+    await db.saveRoutine(makeRoutine({ id: 'r1' }));
+    await db.saveCompletion(makeCompletion({ routineId: 'r1', date: DATE }));
+    await db.saveCompletion(makeCompletion({ routineId: 'r1', date: '2026-07-21' }));
+    await db.saveExecution(makeExecution({ id: 'a', routineId: 'r1', scheduledDate: DATE, status: 'completed' }));
+    await db.saveExecution(makeExecution({ id: 'b', routineId: 'r1', scheduledDate: '2026-07-21', status: 'completed' }));
+
+    await db.deleteCompletion('r1', DATE);
+    await db.deleteExecutionsForRoutineDate('r1', DATE);
+
+    expect((await db.getAllCompletions()).map((c) => c.date)).toEqual(['2026-07-21']);
+    expect(await db.getExecutionsForDate(DATE)).toHaveLength(0);
+    expect(await db.getExecutionsForDate('2026-07-21')).toHaveLength(1);
+  });
+
+  it('drops rows that fail validation instead of crashing', async () => {
+    await db.saveRoutine(makeRoutine({ id: 'r1' }));
+    const handle = await db.getDatabase();
+    // A completion with an impossible date sneaks in below the repository.
+    await handle.runAsync(
+      `INSERT INTO completions (id, routine_id, date, completed, completed_steps, total_steps, duration, started_at, completed_at)
+       VALUES ('bad', 'r1', 'gestern', 1, 1, 1, 10, 'x', 'y');`,
+    );
+    await db.saveCompletion(makeCompletion({ routineId: 'r1', date: DATE }));
+    expect((await db.getAllCompletions()).map((c) => c.date)).toEqual([DATE]);
+  });
+
   it('rejects children of a routine that does not exist', async () => {
     await expect(db.saveCompletion(makeCompletion({ routineId: 'ghost', date: DATE }))).rejects.toThrow();
   });

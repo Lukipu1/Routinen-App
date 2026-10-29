@@ -10,5 +10,4 @@ export { buildShadows } from './shadows';
 export type { Shadows, ShadowToken } from './shadows';
 export { getTheme } from './theme';
 export { ThemeProvider, useTheme, useColorSchemeValue } from './ThemeProvider';
-export { useThemedStyles } from './useThemedStyles';
 export type { Theme, ColorScheme, ThemePreference } from './types';

@@ -15,6 +15,7 @@ import { SectionHeader } from '../../components/common/SectionHeader';
 import { SettingRow } from '../../components/common/SettingRow';
 import { useToast } from '../../components/common/Toast';
 import { usePreferences, useUpdatePreferences } from '../../hooks/usePreferences';
+import { exportBackupFile, pickBackupFile, restoreBackup, type Backup } from '../../services/backup';
 import {
   cancelAllReminders,
   getNotificationPermission,
@@ -83,6 +84,8 @@ export function SettingsScreen(): React.ReactElement {
   const update = useUpdatePreferences();
   const resetSampleData = useAppStore((s) => s.resetSampleData);
   const clearAllData = useAppStore((s) => s.clearAllData);
+  const refresh = useAppStore((s) => s.refresh);
+  const [pendingImport, setPendingImport] = useState<Backup | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [askNotifications, setAskNotifications] = useState(false);
@@ -131,17 +134,37 @@ export function SettingsScreen(): React.ReactElement {
     }
   };
 
-  const runGuarded = async (action: () => Promise<void>, success: string): Promise<void> => {
+  const runGuarded = async (action: () => Promise<void>, success: string | null): Promise<void> => {
     if (busy) return;
     setBusy(true);
     try {
       await action();
-      toast(success, 'success');
-    } catch {
-      toast('Das hat leider nicht geklappt', 'error');
+      if (success) toast(success, 'success');
+    } catch (error) {
+      toast(error instanceof Error && error.message ? error.message : 'Das hat leider nicht geklappt', 'error');
     } finally {
       setBusy(false);
     }
+  };
+
+  const chooseImport = (): void =>
+    void runGuarded(async () => {
+      const backup = await pickBackupFile();
+      if (backup) setPendingImport(backup);
+    }, null);
+
+  const applyImport = (): void => {
+    const backup = pendingImport;
+    setPendingImport(null);
+    if (!backup) return;
+    void runGuarded(async () => {
+      const summary = await restoreBackup(backup);
+      await refresh();
+      toast(
+        `${summary.routines} ${summary.routines === 1 ? 'Routine' : 'Routinen'} wiederhergestellt`,
+        'success',
+      );
+    }, null);
   };
 
   return (
@@ -220,6 +243,22 @@ export function SettingsScreen(): React.ReactElement {
       <SectionHeader title="Daten" />
       <Card style={styles.group}>
         <SettingRow
+          label="Sicherung exportieren"
+          description="Alle Routinen und Verläufe als JSON-Datei teilen"
+          icon="copy"
+          onPress={() => void runGuarded(() => exportBackupFile(), null)}
+          right={<View />}
+        />
+        <SettingRow
+          label="Sicherung importieren"
+          description="Ersetzt die aktuellen Daten durch eine Sicherungsdatei"
+          icon="checklist"
+          onPress={chooseImport}
+          right={<View />}
+        />
+      </Card>
+      <Card style={styles.group}>
+        <SettingRow
           label="Beispieldaten wiederherstellen"
           description="Ersetzt alle Routinen und Verläufe durch die Beispiele"
           icon="copy"
@@ -274,6 +313,19 @@ export function SettingsScreen(): React.ReactElement {
           void runGuarded(clearAllData, 'Alle Daten gelöscht');
         }}
         onCancel={() => setConfirmClear(false)}
+      />
+      <ConfirmationDialog
+        visible={pendingImport !== null}
+        title="Sicherung einspielen?"
+        message={
+          pendingImport
+            ? `Die Datei enthält ${pendingImport.routines.length} Routinen und ${pendingImport.completions.length} Abschlüsse. Deine aktuellen Daten werden dabei ersetzt.`
+            : undefined
+        }
+        confirmLabel="Daten ersetzen"
+        destructive
+        onConfirm={applyImport}
+        onCancel={() => setPendingImport(null)}
       />
       <ConfirmationDialog
         visible={askNotifications}

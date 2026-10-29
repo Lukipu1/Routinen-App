@@ -1,7 +1,7 @@
 import type { ISODateString } from '../types/common';
 import type { RoutineCompletion } from '../types/completion';
 import { getDatabase } from './client';
-import { rowToCompletion, serialize, type CompletionRow } from './mappers';
+import { mapValid, rowToCompletion, serialize, validCompletion, type CompletionRow } from './mappers';
 
 /**
  * Inserts or replaces the completion for a routine on a day. The unique
@@ -39,31 +39,7 @@ export async function getAllCompletions(): Promise<RoutineCompletion[]> {
   const rows = await db.getAllAsync<CompletionRow>(
     'SELECT * FROM completions ORDER BY date DESC;',
   );
-  return rows.map(rowToCompletion);
-}
-
-export async function getCompletionsForDate(
-  dateISO: ISODateString,
-): Promise<RoutineCompletion[]> {
-  const db = await getDatabase();
-  const rows = await db.getAllAsync<CompletionRow>(
-    'SELECT * FROM completions WHERE date = ?;',
-    dateISO,
-  );
-  return rows.map(rowToCompletion);
-}
-
-export async function getCompletionsInRange(
-  startISO: ISODateString,
-  endISO: ISODateString,
-): Promise<RoutineCompletion[]> {
-  const db = await getDatabase();
-  const rows = await db.getAllAsync<CompletionRow>(
-    'SELECT * FROM completions WHERE date >= ? AND date <= ? ORDER BY date ASC;',
-    startISO,
-    endISO,
-  );
-  return rows.map(rowToCompletion);
+  return mapValid(rows, rowToCompletion, validCompletion);
 }
 
 /** Removes the completion of a routine on a day (used by "Rückgängig"). */

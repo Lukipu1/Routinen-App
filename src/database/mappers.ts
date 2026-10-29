@@ -11,6 +11,56 @@ import type {
   StepCompletionType,
 } from '../types/routine';
 import type { RoutineCategory } from '../types/category';
+import {
+  completionSchema,
+  executionSchema,
+  planOverrideSchema,
+  routineSchema,
+} from '../data/schemas';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('db');
+
+/**
+ * Validation for records read back from the database. Rows are our own
+ * writes, but a crash on one corrupt row would take a whole screen down;
+ * dropping it (and logging) is the safer failure mode.
+ */
+function reject(kind: string, issues: unknown): null {
+  log.warn(`${kind} row rejected`, issues);
+  return null;
+}
+
+export function validRoutine(routine: Routine): Routine | null {
+  const result = routineSchema.safeParse(routine);
+  return result.success ? routine : reject('routine', result.error.issues);
+}
+export function validExecution(execution: RoutineExecution): RoutineExecution | null {
+  const result = executionSchema.safeParse(execution);
+  return result.success ? execution : reject('execution', result.error.issues);
+}
+export function validCompletion(completion: RoutineCompletion): RoutineCompletion | null {
+  const result = completionSchema.safeParse(completion);
+  return result.success ? completion : reject('completion', result.error.issues);
+}
+export function validOverride(override: PlanOverride): PlanOverride | null {
+  const result = planOverrideSchema.safeParse(override);
+  return result.success ? override : reject('override', result.error.issues);
+}
+
+/** Maps rows and drops the ones that fail validation. */
+export function mapValid<Row, T>(
+  rows: Row[],
+  map: (row: Row) => T,
+  validate: (value: T) => T | null,
+): T[] {
+  const out: T[] = [];
+  for (const row of rows) {
+    const value = validate(map(row));
+    if (value !== null) out.push(value);
+  }
+  return out;
+}
 
 /** Raw row shapes as returned by SQLite (numbers for booleans, text for JSON). */
 export interface RoutineRow {

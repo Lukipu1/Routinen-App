@@ -14,7 +14,7 @@ export { Icon } from './Icon';
 export { PressableScale } from './PressableScale';
 export { SectionHeader } from './SectionHeader';
 export { SettingRow } from './SettingRow';
-export { LoadingState, ErrorState } from './StateViews';
+export { ErrorState } from './StateViews';
 export { StatusBadge, statusLabel } from './StatusBadge';
 export { TextField } from './TextField';
 export { TimePickerField } from './TimePickerField';

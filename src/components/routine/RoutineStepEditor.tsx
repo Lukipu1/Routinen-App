@@ -13,7 +13,6 @@ interface RoutineStepEditorProps {
   step: RoutineStepDraft;
   index: number;
   total: number;
-  accentColor: string;
   error?: string;
   onChange: (patch: Partial<RoutineStepDraft>) => void;
   onRemove: () => void;
@@ -22,12 +21,11 @@ interface RoutineStepEditorProps {
   onMoveDown: () => void;
 }
 
-/** Editable step card with reordering, duplication and deletion. */
+/** Editable step as one grouped cell: name, duration, note, required switch. */
 export function RoutineStepEditor({
   step,
   index,
   total,
-  accentColor,
   error,
   onChange,
   onRemove,
@@ -43,43 +41,42 @@ export function RoutineStepEditor({
         styles.card,
         {
           backgroundColor: theme.colors.secondaryBackground,
-          borderRadius: theme.radii.md,
-          padding: theme.spacing.md,
-          gap: theme.spacing.sm,
+          borderRadius: theme.radii.lg,
+          padding: theme.spacing.base,
+          gap: theme.spacing.md,
         },
       ]}
     >
       <View style={styles.header}>
-        <AppText variant="headline" style={{ color: accentColor }}>
-          Schritt {index + 1}
-        </AppText>
+        <AppText variant="headline">Schritt {index + 1}</AppText>
         <View style={styles.actions}>
           <IconButton
             iconName="chevronUp"
             accessibilityLabel={`${label} nach oben`}
             onPress={onMoveUp}
             disabled={index === 0}
-            size={36}
+            size={32}
           />
           <IconButton
             iconName="chevronDown"
             accessibilityLabel={`${label} nach unten`}
             onPress={onMoveDown}
             disabled={index === total - 1}
-            size={36}
+            size={32}
           />
           <IconButton
             iconName="copy"
             accessibilityLabel={`${label} duplizieren`}
             onPress={onDuplicate}
-            size={36}
+            size={32}
           />
           <IconButton
             iconName="trash"
             accessibilityLabel={`${label} löschen`}
             onPress={onRemove}
-            size={36}
+            size={32}
             color={theme.colors.error}
+            backgroundColor={theme.colors.errorMuted}
           />
         </View>
       </View>
@@ -91,11 +88,15 @@ export function RoutineStepEditor({
         returnKeyType="done"
         accessibilityLabel={`Name von Schritt ${index + 1}`}
       />
-      <DurationPicker
-        value={step.durationInSeconds}
-        onChange={(durationInSeconds) => onChange({ durationInSeconds })}
-        accentColor={accentColor}
-      />
+      <View style={{ gap: 6 }}>
+        <AppText variant="caption" color="secondaryText" style={{ marginLeft: 4 }}>
+          Dauer
+        </AppText>
+        <DurationPicker
+          value={step.durationInSeconds}
+          onChange={(durationInSeconds) => onChange({ durationInSeconds })}
+        />
+      </View>
       <TextField
         placeholder="Kurzer Hinweis (optional)"
         value={step.note}
@@ -113,7 +114,6 @@ export function RoutineStepEditor({
           value={!step.canSkip}
           onValueChange={(required) => onChange({ canSkip: !required })}
           accessibilityLabel={`${label} ist Pflichtschritt`}
-          accentColor={accentColor}
         />
       </View>
     </View>
@@ -137,7 +137,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    marginTop: 4,
   },
   switchText: { flex: 1, gap: 2 },
 });

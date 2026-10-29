@@ -17,21 +17,17 @@ import { formatDuration, pluralize } from '../../utils/format';
 import { useAppStore } from '../../store/appStore';
 import { useTheme } from '../../theme/ThemeProvider';
 
-function StatTile({
-  icon,
-  value,
-  label,
-  color,
-}: {
-  icon: string;
-  value: string;
-  label: string;
-  color: string;
-}): React.ReactElement {
+/** Quiet number tile: one symbol in a neutral tint, the value, a caption. */
+function StatTile({ icon, value, label }: { icon: string; value: string; label: string }): React.ReactElement {
+  const theme = useTheme();
   return (
-    <Card elevated style={styles.tile} accessibilityLabel={`${label}: ${value}`}>
-      <Icon name={icon} size={22} color={color} />
-      <AppText variant="title">{value}</AppText>
+    <Card style={styles.tile} accessibilityLabel={`${label}: ${value}`}>
+      <View style={[styles.tileIcon, { backgroundColor: theme.colors.fill }]}>
+        <Icon name={icon} size={16} color={theme.colors.secondaryText} strokeWidth={2.25} />
+      </View>
+      <AppText variant="title" style={{ marginTop: 4 }}>
+        {value}
+      </AppText>
       <AppText variant="caption" color="secondaryText">
         {label}
       </AppText>
@@ -43,7 +39,7 @@ function WeeklyChart({ week }: { week: WeekDayStat[] }): React.ReactElement {
   const theme = useTheme();
   const maxHeight = 90;
   return (
-    <Card elevated>
+    <Card>
       <View style={styles.weekRow}>
         {week.map((day) => {
           const fraction = day.plannedCount === 0 ? 0 : day.completedCount / day.plannedCount;
@@ -119,25 +115,17 @@ export function ProgressScreen(): React.ReactElement {
           icon="flame"
           value={`${overall.currentStreak}`}
           label={pluralize(overall.currentStreak, 'Tag in Folge', 'Tage in Folge')}
-          color={theme.colors.warningText}
         />
         <StatTile
           icon="trending"
           value={`${Math.round(overall.successRate * 100)} %`}
           label="Erfolgsquote (Woche)"
-          color={theme.colors.successText}
         />
-        <StatTile
-          icon="award"
-          value={`${overall.longestStreak}`}
-          label="Längste Serie"
-          color={theme.colors.accent}
-        />
+        <StatTile icon="award" value={`${overall.longestStreak}`} label="Längste Serie" />
         <StatTile
           icon="clock"
           value={overall.averageDurationSeconds > 0 ? formatDuration(overall.averageDurationSeconds) : '—'}
           label="Ø Dauer pro Routine"
-          color={theme.colors.secondaryText}
         />
       </View>
 
@@ -148,7 +136,7 @@ export function ProgressScreen(): React.ReactElement {
 
       <View style={{ marginTop: theme.spacing.lg }}>
         <SectionHeader title="Pro Routine" />
-        <Card elevated>
+        <Card>
           {perRoutine.map((item, index) => (
             <View
               key={item.routineId}
@@ -188,7 +176,14 @@ const styles = StyleSheet.create({
   tile: {
     flexGrow: 1,
     flexBasis: '46%',
-    gap: 6,
+    gap: 2,
+  },
+  tileIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   weekRow: {
     flexDirection: 'row',

@@ -1,114 +1,113 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, View } from 'react-native';
 
-import { resolveOnRoutineColor, resolveRoutineColor } from '../../constants/colors';
+import { photoForCategory } from '../../constants/photos';
+import { haptics } from '../../services/haptics';
 import type { PlannedRoutine } from '../../types/planning';
 import { formatDuration, pluralize } from '../../utils/format';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from '../common/AppText';
 import { Icon } from '../common/Icon';
-import { PressableScale } from '../common/PressableScale';
 
 interface NextRoutineCardProps {
   planned: PlannedRoutine;
   onPress: () => void;
 }
 
-/** Prominent hero card for the next / in-progress routine on the Today screen. */
+const WHITE = '#FFFFFF';
+const WHITE_MUTED = 'rgba(255,255,255,0.9)';
+
+/**
+ * The one bold element on "Heute": the next routine on its category
+ * photograph. All text sits in the lower half, on a scrim that reaches 0.85
+ * black at the baseline, so white stays legible on even the brightest sky.
+ */
 export function NextRoutineCard({ planned, onPress }: NextRoutineCardProps): React.ReactElement {
   const theme = useTheme();
   const { routine, status, startTime } = planned;
-  const color = resolveRoutineColor(routine.color);
-  // Light accents (orange, yellow, …) need dark text to stay readable.
-  const ink = resolveOnRoutineColor(routine.color);
   const inProgress = status === 'active' || status === 'paused';
   const overdue = status === 'overdue';
   const actionLabel = inProgress ? 'Fortsetzen' : overdue ? 'Nachholen' : 'Starten';
   const eyebrow = inProgress ? 'Weiter geht’s' : overdue ? 'Noch offen' : 'Als Nächstes';
+  const stepCount = routine.steps.length;
   const meta = [
     startTime ?? 'Flexibel',
     formatDuration(routine.estimatedDuration),
-    `${routine.steps.length} ${pluralize(routine.steps.length, 'Schritt', 'Schritte')}`,
+    `${stepCount} ${pluralize(stepCount, 'Schritt', 'Schritte')}`,
   ].join('  ·  ');
-  const inkMuted = ink === '#FFFFFF' ? 'rgba(255,255,255,0.9)' : 'rgba(28,28,30,0.8)';
-  const inkCircle = ink === '#FFFFFF' ? 'rgba(255,255,255,0.25)' : 'rgba(28,28,30,0.12)';
 
   return (
-    // The shadow lives on a wrapper: `overflow: hidden` on the card itself
-    // (needed to clip the gradient) would clip the shadow on iOS.
-    <View style={[styles.shadowWrapper, theme.shadows.elevated, { borderRadius: 24 }]}>
-      <View style={[styles.card, { backgroundColor: color }]}>
-        <LinearGradient
-          colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.topRow}>
-          <View style={[styles.iconCircle, { backgroundColor: inkCircle }]}>
-            <Icon name={routine.icon} size={26} color={ink} />
-          </View>
-          <AppText variant="caption" style={[styles.eyebrow, { color: inkMuted }]} weight="600">
-            {eyebrow.toUpperCase()}
-          </AppText>
-        </View>
-        <AppText variant="title" style={{ color: ink }} numberOfLines={2}>
-          {routine.title}
-        </AppText>
-        <AppText variant="callout" style={[styles.meta, { color: inkMuted }]}>
-          {meta}
-        </AppText>
-        <PressableScale
-          onPress={onPress}
-          haptic="medium"
-          accessibilityRole="button"
-          accessibilityLabel={`${actionLabel}: ${routine.title}`}
-          style={[styles.button, { backgroundColor: theme.colors.elevatedBackground }]}
+    <View style={[styles.shadow, theme.shadows.elevated]}>
+      <Pressable
+        onPress={() => {
+          void haptics.medium();
+          onPress();
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={`${eyebrow}: ${routine.title}, ${meta}. ${actionLabel}`}
+        style={({ pressed }) => [styles.card, { borderRadius: theme.radii.lg, opacity: pressed ? 0.9 : 1 }]}
+      >
+        <ImageBackground
+          source={photoForCategory(routine.category)}
+          style={styles.image}
+          // Explicit size: on web the inner image would otherwise take the
+          // asset's natural 1200×800 and show only its top-left corner.
+          imageStyle={{ width: '100%', height: '100%', borderRadius: theme.radii.lg }}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
         >
-          <View style={styles.buttonInner}>
-            <Icon name="play" size={20} color={theme.colors.primaryText} />
-            <AppText variant="headline">{actionLabel}</AppText>
+          <LinearGradient
+            colors={['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.85)']}
+            locations={[0, 0.5, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.content}>
+            <AppText variant="caption" weight="600" style={{ color: WHITE_MUTED }}>
+              {eyebrow}
+            </AppText>
+            <AppText variant="title" style={{ color: WHITE }} numberOfLines={2}>
+              {routine.title}
+            </AppText>
+            <View style={styles.bottomRow}>
+              <AppText variant="callout" style={[styles.meta, { color: WHITE }]} numberOfLines={1}>
+                {meta}
+              </AppText>
+              <View style={styles.action}>
+                <Icon name="play" size={14} color="#000000" strokeWidth={3} />
+                <AppText variant="callout" weight="600" style={{ color: '#000000' }} maxFontSizeMultiplier={1.3}>
+                  {actionLabel}
+                </AppText>
+              </View>
+            </View>
           </View>
-        </PressableScale>
-      </View>
+        </ImageBackground>
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  shadowWrapper: {},
-  card: {
-    borderRadius: 24,
-    padding: 20,
-    overflow: 'hidden',
-    gap: 6,
-  },
-  topRow: {
+  shadow: {},
+  card: { overflow: 'hidden' },
+  image: { minHeight: 240, justifyContent: 'flex-end' },
+  content: { padding: 20, gap: 4 },
+  bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    gap: 12,
+    marginTop: 10,
   },
-  iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  eyebrow: {
-    letterSpacing: 1,
-  },
-  meta: { marginBottom: 8 },
-  button: {
-    borderRadius: 999,
-    paddingVertical: 14,
-    marginTop: 6,
-    minHeight: 48,
-  },
-  buttonInner: {
+  meta: { flexShrink: 1 },
+  action: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    minHeight: 38,
   },
 });

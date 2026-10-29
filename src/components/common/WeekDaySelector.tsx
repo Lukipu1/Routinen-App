@@ -1,33 +1,30 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { WEEKDAY_LONG, WEEKDAY_SHORT, orderedWeekdays } from '../../constants/weekdays';
+import { haptics } from '../../services/haptics';
 import type { Weekday, WeekStart } from '../../types/common';
-import { onColorForHex } from '../../constants/colors';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from './AppText';
-import { PressableScale } from './PressableScale';
 
 interface WeekDaySelectorProps {
   selected: Weekday[];
   onChange: (weekdays: Weekday[]) => void;
   weekStartsOn?: WeekStart;
-  accentColor?: string;
 }
 
-/** Row of seven toggleable day chips for choosing a weekly schedule. */
+/** Row of seven toggleable day circles for choosing a weekly schedule. */
 export function WeekDaySelector({
   selected,
   onChange,
   weekStartsOn = 1,
-  accentColor,
 }: WeekDaySelectorProps): React.ReactElement {
   const theme = useTheme();
-  const accent = accentColor ?? theme.colors.accent;
   const days = orderedWeekdays(weekStartsOn);
   const selectedSet = new Set(selected);
 
   const toggle = (day: Weekday): void => {
+    void haptics.selection();
     const next = new Set(selectedSet);
     if (next.has(day)) next.delete(day);
     else next.add(day);
@@ -35,33 +32,34 @@ export function WeekDaySelector({
   };
 
   return (
-    <View style={styles.row}>
+    <View style={styles.row} accessibilityRole="radiogroup" accessibilityLabel="Wochentage">
       {days.map((day) => {
         const isSelected = selectedSet.has(day);
         return (
-          <PressableScale
+          <Pressable
             key={day}
             onPress={() => toggle(day)}
-            haptic="selection"
-            scaleTo={0.9}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: isSelected }}
             accessibilityLabel={WEEKDAY_LONG[day]}
-            style={[
+            hitSlop={4}
+            style={({ pressed }) => [
               styles.day,
               {
-                backgroundColor: isSelected ? accent : theme.colors.fill,
+                backgroundColor: isSelected ? theme.colors.accent : theme.colors.fill,
+                opacity: pressed ? 0.7 : 1,
               },
             ]}
           >
             <AppText
               variant="callout"
               weight="600"
-              style={{ color: isSelected ? onColorForHex(accent) : theme.colors.primaryText }}
+              maxFontSizeMultiplier={1.3}
+              style={{ color: isSelected ? theme.colors.onAccent : theme.colors.primaryText }}
             >
               {WEEKDAY_SHORT[day]}
             </AppText>
-          </PressableScale>
+          </Pressable>
         );
       })}
     </View>

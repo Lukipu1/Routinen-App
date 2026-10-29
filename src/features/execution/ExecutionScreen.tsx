@@ -211,37 +211,29 @@ export function ExecutionScreen(): React.ReactElement {
       </ScrollView>
 
       <View style={styles.controls}>
-        <PrimaryButton title="Erledigt" iconName="check" accentColor={accent} onPress={completeStep} />
+        <PrimaryButton title="Erledigt" iconName="check" onPress={completeStep} />
         <View style={styles.controlRow}>
           <SecondaryButton
             title={isActive ? 'Pause' : 'Fortsetzen'}
-            iconName={isActive ? 'pause' : 'play'}
             onPress={isActive ? pause : resume}
             fullWidth={false}
             style={styles.grow}
           />
           {step?.canSkip ? (
-            <SecondaryButton
-              title="Überspringen"
-              iconName="skip"
-              onPress={skipStep}
-              fullWidth={false}
-              style={styles.grow}
-            />
+            <SecondaryButton title="Überspringen" onPress={skipStep} fullWidth={false} style={styles.grow} />
           ) : null}
         </View>
         <View style={styles.controlRow}>
           <Button
             variant="ghost"
-            title="Vorheriger Schritt"
-            iconName="chevronLeft"
+            title="Schritt zurück"
             onPress={goBack}
             disabled={!canGoBack}
             fullWidth={false}
             style={styles.grow}
           />
           {isTimed ? (
-            <Button variant="ghost" title="+1 Minute" onPress={() => addTime(60)} fullWidth={false} style={styles.grow} />
+            <Button variant="ghost" title="+1 Min" onPress={() => addTime(60)} fullWidth={false} style={styles.grow} />
           ) : null}
         </View>
       </View>
@@ -255,7 +247,7 @@ export function ExecutionScreen(): React.ReactElement {
           <PrimaryButton
             title="Später fortsetzen"
             iconName="pause"
-            accentColor={accent}
+           
             onPress={() => {
               setLeaveOpen(false);
               void leave().then(() => router.back());
@@ -330,7 +322,7 @@ function SummaryView({
         </Animated.View>
       </View>
       <View style={styles.controls}>
-        <PrimaryButton title="Fertig" onPress={onDone} accentColor={accent} />
+        <PrimaryButton title="Fertig" onPress={onDone} />
         {onUndo ? <Button variant="ghost" title="Rückgängig – letzten Schritt wiederholen" onPress={onUndo} /> : null}
       </View>
     </SafeAreaView>

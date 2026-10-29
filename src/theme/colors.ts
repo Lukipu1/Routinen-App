@@ -30,8 +30,10 @@ export interface ColorTokens {
   accent: string;
   /** Text drawn on top of the accent colour. */
   onAccent: string;
-  /** Soft tint of the accent for backgrounds. */
+  /** Soft tint of the accent for tinted buttons and selected backgrounds. */
   accentMuted: string;
+  /** Soft tint of the error colour for destructive tinted buttons. */
+  errorMuted: string;
   success: string;
   warning: string;
   error: string;
@@ -55,6 +57,7 @@ export const lightColors: ColorTokens = {
   accent: '#007AFF',
   onAccent: '#FFFFFF',
   accentMuted: 'rgba(0,122,255,0.12)',
+  errorMuted: 'rgba(255,59,48,0.12)',
   success: '#34C759',
   warning: '#FF9500',
   error: '#FF3B30',
@@ -75,7 +78,8 @@ export const darkColors: ColorTokens = {
   fillStrong: 'rgba(118,118,128,0.36)',
   accent: '#0A84FF',
   onAccent: '#FFFFFF',
-  accentMuted: 'rgba(10,132,255,0.18)',
+  accentMuted: 'rgba(10,132,255,0.2)',
+  errorMuted: 'rgba(255,69,58,0.2)',
   success: '#30D158',
   warning: '#FF9F0A',
   error: '#FF453A',

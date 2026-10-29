@@ -1,14 +1,14 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '../../components/common/AppText';
 import { BottomSheet } from '../../components/common/BottomSheet';
 import { PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
 import { Icon } from '../../components/common/Icon';
-import { PressableScale } from '../../components/common/PressableScale';
 import { useToast } from '../../components/common/Toast';
-import { resolveOnRoutineColor, resolveRoutineColor } from '../../constants/colors';
+import { photoForCategory } from '../../constants/photos';
+import { haptics } from '../../services/haptics';
 import type { PlannedRoutine } from '../../types/planning';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppStore } from '../../store/appStore';
@@ -66,19 +66,19 @@ export function AddToDaySheet({
           />
         </View>
       ) : (
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: 12 }}>
           {routines.length === 0 ? (
             <AppText variant="body" color="secondaryText">
               Noch keine Routinen vorhanden.
             </AppText>
           ) : (
             <ScrollView style={{ maxHeight: 320 }}>
-              {routines.map((routine) => {
-                const color = resolveRoutineColor(routine.color);
+              {routines.map((routine, index) => {
                 const entry = planned.find((p) => p.routine.id === routine.id);
                 // Skipped routines can be planned again; everything else that is
                 // already on today's list has nothing to gain from another tap.
                 const alreadyPlanned = entry !== undefined && entry.status !== 'skipped';
+                const last = index === routines.length - 1;
                 const hint = alreadyPlanned
                   ? 'Heute bereits geplant'
                   : entry?.status === 'skipped'
@@ -87,49 +87,46 @@ export function AddToDaySheet({
                       ? 'Inaktiv – nur für heute einplanen'
                       : null;
                 return (
-                  <PressableScale
+                  <Pressable
                     key={routine.id}
-                    onPress={() => planExisting(routine.id)}
+                    onPress={() => {
+                      void haptics.light();
+                      void planExisting(routine.id);
+                    }}
                     disabled={alreadyPlanned}
-                    scaleTo={0.98}
                     accessibilityRole="button"
                     accessibilityLabel={`${routine.title} für heute einplanen`}
                     accessibilityState={{ disabled: alreadyPlanned }}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 12,
-                      paddingVertical: 10,
-                      minHeight: 48,
-                      opacity: alreadyPlanned ? 0.5 : 1,
-                    }}
+                    style={({ pressed }) => [
+                      styles.row,
+                      { opacity: alreadyPlanned ? 0.5 : pressed ? 0.6 : 1 },
+                    ]}
                   >
+                    <Image source={photoForCategory(routine.category)} style={styles.thumb} accessibilityIgnoresInvertColors />
                     <View
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
-                        backgroundColor: color,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
+                      style={[
+                        styles.body,
+                        { borderBottomColor: theme.colors.separator, borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth },
+                      ]}
                     >
-                      <Icon name={routine.icon} size={18} color={resolveOnRoutineColor(routine.color)} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <AppText variant="body">{routine.title}</AppText>
-                      {hint ? (
-                        <AppText variant="caption" color="secondaryText">
-                          {hint}
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <AppText variant="body" numberOfLines={1}>
+                          {routine.title}
                         </AppText>
-                      ) : null}
+                        {hint ? (
+                          <AppText variant="caption" color="secondaryText">
+                            {hint}
+                          </AppText>
+                        ) : null}
+                      </View>
+                      <Icon
+                        name={alreadyPlanned ? 'check' : 'plus'}
+                        size={20}
+                        color={alreadyPlanned ? theme.colors.secondaryText : theme.colors.accent}
+                        strokeWidth={2.5}
+                      />
                     </View>
-                    <Icon
-                      name={alreadyPlanned ? 'check' : 'plus'}
-                      size={20}
-                      color={alreadyPlanned ? theme.colors.secondaryText : theme.colors.accent}
-                    />
-                  </PressableScale>
+                  </Pressable>
                 );
               })}
             </ScrollView>
@@ -142,3 +139,19 @@ export function AddToDaySheet({
     </BottomSheet>
   );
 }
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  thumb: { width: 44, height: 44, borderRadius: 10, marginRight: 12, backgroundColor: '#D1D1D6' },
+  body: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    minHeight: 56,
+  },
+});

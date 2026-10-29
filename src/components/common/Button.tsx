@@ -1,12 +1,24 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
-import { onColorForHex } from '../../constants/colors';
+import { haptics } from '../../services/haptics';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
-import { PressableScale } from './PressableScale';
 
+/**
+ * iOS button hierarchy: one `primary` (filled with the accent) per view for
+ * the most likely action, `secondary` (tinted) for the rest, `ghost` (plain
+ * text) for tertiary actions, and `destructive` (tinted red) which is never
+ * the default. All share the same size — style, not size, tells them apart.
+ */
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 
 interface ButtonProps {
@@ -16,10 +28,9 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   iconName?: string;
-  /** Accent colour override (e.g. a routine's colour) for the primary variant. */
-  accentColor?: string;
   fullWidth?: boolean;
-  pill?: boolean;
+  /** Compact height for buttons inside rows or sheets. */
+  size?: 'regular' | 'compact';
   style?: StyleProp<ViewStyle>;
 }
 
@@ -31,46 +42,48 @@ export function Button({
   disabled = false,
   loading = false,
   iconName,
-  accentColor,
   fullWidth = true,
-  pill = false,
+  size = 'regular',
   style,
 }: ButtonProps): React.ReactElement {
   const theme = useTheme();
-  const accent = accentColor ?? theme.colors.accent;
+  const { colors } = theme;
 
-  const backgroundColor: Record<ButtonVariant, string> = {
-    primary: accent,
-    secondary: theme.colors.fill,
+  const background: Record<ButtonVariant, string> = {
+    primary: colors.accent,
+    secondary: colors.accentMuted,
     ghost: 'transparent',
-    destructive: theme.colors.error,
+    destructive: colors.errorMuted,
   };
-  const textColorToken: Record<ButtonVariant, string> = {
-    // A routine colour as accent may need dark text to stay readable.
-    primary: accentColor ? onColorForHex(accentColor) : theme.colors.onAccent,
-    secondary: theme.colors.primaryText,
-    ghost: accent,
-    destructive: theme.colors.onAccent,
+  const foreground: Record<ButtonVariant, string> = {
+    primary: colors.onAccent,
+    secondary: colors.accent,
+    ghost: colors.accent,
+    destructive: colors.error,
   };
 
   const isDisabled = disabled || loading;
-  const textColor = textColorToken[variant];
+  const textColor = foreground[variant];
 
   return (
-    <PressableScale
-      onPress={onPress}
+    <Pressable
+      onPress={() => {
+        void haptics.light();
+        onPress();
+      }}
       disabled={isDisabled}
-      haptic="light"
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       accessibilityLabel={title}
-      style={[
+      hitSlop={size === 'compact' ? 4 : 0}
+      style={({ pressed }) => [
         styles.base,
+        size === 'compact' ? styles.compact : styles.regular,
         {
-          backgroundColor: backgroundColor[variant],
-          borderRadius: pill ? theme.radii.pill : theme.radii.md,
-          paddingHorizontal: theme.spacing.lg,
-          opacity: isDisabled ? 0.5 : 1,
+          backgroundColor: background[variant],
+          borderRadius: theme.radii.pill,
+          // iOS press feedback: the control dims, it does not shrink.
+          opacity: isDisabled ? 0.4 : pressed ? 0.65 : 1,
           alignSelf: fullWidth ? 'stretch' : 'flex-start',
         },
         style,
@@ -81,22 +94,30 @@ export function Button({
           <ActivityIndicator color={textColor} />
         ) : (
           <>
-            {iconName ? <Icon name={iconName} size={20} color={textColor} /> : null}
-            <AppText variant="headline" style={{ color: textColor }}>
+            {iconName ? <Icon name={iconName} size={size === 'compact' ? 18 : 20} color={textColor} /> : null}
+            <AppText
+              variant={size === 'compact' ? 'callout' : 'headline'}
+              weight="600"
+              style={{ color: textColor }}
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.4}
+            >
               {title}
             </AppText>
           </>
         )}
       </View>
-    </PressableScale>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 52,
     justifyContent: 'center',
+    paddingHorizontal: 20,
   },
+  regular: { minHeight: 50 },
+  compact: { minHeight: 40, paddingHorizontal: 16 },
   content: {
     flexDirection: 'row',
     alignItems: 'center',

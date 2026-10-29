@@ -4,8 +4,9 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppHeader } from '../../components/common/AppHeader';
 import { AppText } from '../../components/common/AppText';
+import { Card } from '../../components/common/Card';
 import { Chip } from '../../components/common/Chip';
-import { FloatingActionButton } from '../../components/common/Buttons';
+import { IconButton } from '../../components/common/Buttons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { TextField } from '../../components/common/TextField';
@@ -55,69 +56,59 @@ export function RoutinesScreen(): React.ReactElement {
   const items = useRoutineList(search, category);
 
   return (
-    <View style={styles.flex}>
-      <ScreenContainer scroll>
-        <AppHeader title="Routinen" />
+    <ScreenContainer scroll>
+      <AppHeader
+        title="Routinen"
+        trailing={
+          <IconButton iconName="plus" tone="tinted" accessibilityLabel="Neue Routine" onPress={() => router.push('/editor')} />
+        }
+      />
 
-        {totalRoutines === 0 ? (
-          <EmptyState
-            icon="checklist"
-            title="Noch keine Routinen"
-            message="Erstelle deine erste Routine mit ein paar einfachen Schritten."
-            actionLabel="Routine erstellen"
-            onAction={() => router.push('/editor')}
-          />
-        ) : (
-          <>
-            <TextField
-              placeholder="Routinen suchen"
-              value={search}
-              onChangeText={setSearch}
-              autoCapitalize="none"
-            />
-            <View style={{ marginTop: theme.spacing.sm, marginBottom: theme.spacing.base }}>
-              <CategoryFilter value={category} onChange={setCategory} />
-            </View>
-
-            {items.length === 0 ? (
-              <AppText variant="body" color="secondaryText" center style={{ marginTop: 40 }}>
-                Keine passenden Routinen gefunden.
-              </AppText>
-            ) : (
-              <View style={{ gap: theme.spacing.md }}>
-                {items.map(({ routine, nextOccurrence }) => (
-                  <RoutineCard
-                    key={routine.id}
-                    routine={routine}
-                    nextOccurrence={nextOccurrence}
-                    weekStartsOn={preferences.weekStartsOn}
-                    onPress={() =>
-                      router.push({ pathname: '/routine/[id]', params: { id: routine.id } })
-                    }
-                  />
-                ))}
-              </View>
-            )}
-          </>
-        )}
-      </ScreenContainer>
-
-      <View style={styles.fab}>
-        <FloatingActionButton
-          accessibilityLabel="Neue Routine"
-          onPress={() => router.push('/editor')}
+      {totalRoutines === 0 ? (
+        <EmptyState
+          icon="checklist"
+          title="Noch keine Routinen"
+          message="Erstelle deine erste Routine mit ein paar einfachen Schritten."
+          actionLabel="Routine erstellen"
+          onAction={() => router.push('/editor')}
         />
-      </View>
-    </View>
+      ) : (
+        <>
+          <TextField
+            placeholder="Suchen"
+            value={search}
+            onChangeText={setSearch}
+            autoCapitalize="none"
+            accessibilityLabel="Routinen suchen"
+          />
+          <View style={{ marginTop: theme.spacing.md, marginBottom: theme.spacing.base }}>
+            <CategoryFilter value={category} onChange={setCategory} />
+          </View>
+
+          {items.length === 0 ? (
+            <AppText variant="body" color="secondaryText" center style={{ marginTop: 40 }}>
+              Keine passenden Routinen gefunden.
+            </AppText>
+          ) : (
+            <Card padded={false}>
+              {items.map(({ routine, nextOccurrence }, index) => (
+                <RoutineCard
+                  key={routine.id}
+                  routine={routine}
+                  nextOccurrence={nextOccurrence}
+                  weekStartsOn={preferences.weekStartsOn}
+                  last={index === items.length - 1}
+                  onPress={() => router.push({ pathname: '/routine/[id]', params: { id: routine.id } })}
+                />
+              ))}
+            </Card>
+          )}
+        </>
+      )}
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   filterRow: { gap: 8, paddingRight: 16 },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-  },
 });

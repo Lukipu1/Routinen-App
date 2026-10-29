@@ -8,7 +8,6 @@ import { PrimaryButton, SecondaryButton } from '../../components/common/Buttons'
 import { Button } from '../../components/common/Button';
 import { TimePickerField } from '../../components/common/TimePickerField';
 import { useToast } from '../../components/common/Toast';
-import { resolveRoutineColor } from '../../constants/colors';
 import type { PlannedRoutine } from '../../types/planning';
 import type { Routine } from '../../types/routine';
 import { formatDuration } from '../../utils/format';
@@ -46,7 +45,6 @@ export function PlannedActionsSheet({
   }
 
   const { routine, status, completion } = planned;
-  const accent = resolveRoutineColor(routine.color);
   const isDone = status === 'completed';
   const isSkipped = status === 'skipped';
   const isAbandoned = status === 'abandoned';
@@ -96,8 +94,8 @@ export function PlannedActionsSheet({
             <AppText variant="callout" color="secondaryText">
               Neue Uhrzeit wählen
             </AppText>
-            <TimePickerField value={moveTime} onChange={setMoveTime} accentColor={accent} />
-            <PrimaryButton title="Nur heute" onPress={applyMoveToday} accentColor={accent} />
+            <TimePickerField value={moveTime} onChange={setMoveTime} />
+            <PrimaryButton title="Nur heute" onPress={applyMoveToday} />
             <SecondaryButton title="Alle zukünftigen Tage" onPress={applyMoveAllDays} />
             <SecondaryButton title="Zurück" onPress={() => setMoving(false)} />
           </>
@@ -113,7 +111,7 @@ export function PlannedActionsSheet({
               title={startLabel}
               iconName="play"
               onPress={() => onStart(planned)}
-              accentColor={accent}
+             
             />
             {isDone ? (
               <SecondaryButton title="Abschluss zurücknehmen" iconName="arrowLeft" onPress={undo} />

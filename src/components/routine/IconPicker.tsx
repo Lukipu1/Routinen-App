@@ -1,49 +1,51 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { PICKABLE_ICONS, iconLabel, type IconKey } from '../../constants/icons';
-import { onColorForHex } from '../../constants/colors';
+import { haptics } from '../../services/haptics';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Icon } from '../common/Icon';
-import { PressableScale } from '../common/PressableScale';
 
 interface IconPickerProps {
   value: IconKey;
   onChange: (icon: IconKey) => void;
-  accentColor?: string;
 }
 
-/** Grid of selectable routine icons. */
-export function IconPicker({ value, onChange, accentColor }: IconPickerProps): React.ReactElement {
+/**
+ * Grid of selectable routine symbols. The chosen cell takes the tint colour
+ * (selection is an interactive state); the rest sit in the neutral fill.
+ */
+export function IconPicker({ value, onChange }: IconPickerProps): React.ReactElement {
   const theme = useTheme();
-  const accent = accentColor ?? theme.colors.accent;
   return (
     <View style={styles.grid} accessibilityRole="radiogroup">
       {PICKABLE_ICONS.map((iconKey) => {
         const isSelected = iconKey === value;
         return (
-          <PressableScale
+          <Pressable
             key={iconKey}
-            onPress={() => onChange(iconKey)}
-            haptic="selection"
-            scaleTo={0.9}
+            onPress={() => {
+              void haptics.selection();
+              onChange(iconKey);
+            }}
             accessibilityRole="radio"
             accessibilityState={{ selected: isSelected }}
             accessibilityLabel={`Symbol ${iconLabel(iconKey)}`}
-            style={[
+            style={({ pressed }) => [
               styles.cell,
               {
-                backgroundColor: isSelected ? accent : theme.colors.fill,
+                backgroundColor: isSelected ? theme.colors.accent : theme.colors.fill,
                 borderRadius: theme.radii.md,
+                opacity: pressed ? 0.7 : 1,
               },
             ]}
           >
             <Icon
               name={iconKey}
-              size={24}
-              color={isSelected ? onColorForHex(accent) : theme.colors.primaryText}
+              size={22}
+              color={isSelected ? theme.colors.onAccent : theme.colors.primaryText}
             />
-          </PressableScale>
+          </Pressable>
         );
       })}
     </View>
@@ -57,8 +59,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   cell: {
-    width: 52,
-    height: 52,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },

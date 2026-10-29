@@ -1,13 +1,13 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { resolveOnRoutineColor, resolveRoutineColor } from '../../constants/colors';
+import { resolveRoutineColor } from '../../constants/colors';
+import { haptics } from '../../services/haptics';
 import type { PlannedRoutine } from '../../types/planning';
 import { formatDuration, pluralize } from '../../utils/format';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from '../common/AppText';
 import { Icon } from '../common/Icon';
-import { PressableScale } from '../common/PressableScale';
 import { StatusBadge, statusLabel } from '../common/StatusBadge';
 
 interface TimelineItemProps {
@@ -17,9 +17,14 @@ interface TimelineItemProps {
   isLast?: boolean;
 }
 
-const DIMMED = new Set(['completed', 'abandoned', 'skipped', 'missed']);
+const SETTLED = new Set(['completed', 'abandoned', 'skipped', 'missed']);
 
-/** One entry in the vertical day timeline. */
+/**
+ * One entry of the day's timeline: the time in the margin, a thin rail with a
+ * dot in the routine's colour, and a list row with the routine's symbol tile.
+ * The routine colour appears only here and in the tile, so it reads as the
+ * routine's identity — the accent blue stays reserved for controls.
+ */
 export function TimelineItem({
   planned,
   onPress,
@@ -29,71 +34,63 @@ export function TimelineItem({
   const theme = useTheme();
   const { routine, status, startTime } = planned;
   const color = resolveRoutineColor(routine.color);
-  const dimmed = DIMMED.has(status);
-  const nodeColor =
-    status === 'completed'
-      ? theme.colors.success
-      : status === 'skipped' || status === 'missed' || status === 'abandoned'
-        ? theme.colors.tertiaryText
-        : status === 'overdue'
-          ? theme.colors.warning
-          : color;
-  const isActive = status === 'active' || status === 'ready' || status === 'overdue';
-  const steps = `${routine.steps.length} ${pluralize(routine.steps.length, 'Schritt', 'Schritte')}`;
+  const settled = SETTLED.has(status);
+  const live = status === 'active' || status === 'paused';
+  const stepCount = routine.steps.length;
+  const steps = `${stepCount} ${pluralize(stepCount, 'Schritt', 'Schritte')}`;
   const time = startTime ?? 'Flexibel';
+  const dotColor = status === 'completed' ? theme.colors.success : settled ? theme.colors.tertiaryText : color;
 
   return (
     <View style={styles.row}>
       <View style={styles.timeColumn}>
-        <AppText variant="caption" color="secondaryText" maxFontSizeMultiplier={1.3}>
+        <AppText variant="caption" weight="600" color={settled ? 'tertiaryText' : 'secondaryText'} maxFontSizeMultiplier={1.3}>
           {time}
         </AppText>
       </View>
-      <View style={styles.lineColumn}>
+      <View style={styles.railColumn}>
         <View
           style={[
-            styles.line,
-            {
-              backgroundColor: theme.colors.separator,
-              top: isFirst ? '50%' : 0,
-              bottom: isLast ? '50%' : 0,
-            },
+            styles.rail,
+            { backgroundColor: theme.colors.separator, top: isFirst ? 22 : 0, bottom: isLast ? undefined : 0, height: isLast ? 22 : undefined },
           ]}
         />
-        <View style={[styles.node, { backgroundColor: nodeColor, borderColor: theme.colors.background }]} />
+        <View style={[styles.dot, { backgroundColor: dotColor, borderColor: theme.colors.background }]} />
       </View>
 
-      <PressableScale
-        onPress={onPress}
-        scaleTo={0.98}
+      <Pressable
+        onPress={() => {
+          void haptics.light();
+          onPress();
+        }}
         accessibilityRole="button"
         accessibilityLabel={`${routine.title}, ${time}, ${formatDuration(routine.estimatedDuration)}, ${steps}, ${statusLabel(status)}`}
         accessibilityHint="Öffnet Aktionen für diese Routine"
-        style={[
+        style={({ pressed }) => [
           styles.card,
           {
             backgroundColor: theme.colors.secondaryBackground,
             borderRadius: theme.radii.md,
-            padding: theme.spacing.md,
-            opacity: dimmed ? 0.6 : 1,
-            borderWidth: isActive ? 2 : 0,
-            borderColor: isActive ? color : 'transparent',
+            borderWidth: live ? 1.5 : 0,
+            borderColor: live ? theme.colors.accent : 'transparent',
+            opacity: pressed ? 0.75 : settled ? 0.6 : 1,
           },
         ]}
       >
-        <View style={[styles.iconCircle, { backgroundColor: color }]}>
-          <Icon name={routine.icon} size={20} color={resolveOnRoutineColor(routine.color)} />
+        <View style={[styles.tile, { backgroundColor: color }]}>
+          <Icon name={routine.icon} size={18} color="#FFFFFF" strokeWidth={2.25} />
         </View>
         <View style={styles.body}>
           <AppText variant="headline" numberOfLines={1}>
             {routine.title}
           </AppText>
           <AppText variant="caption" color="secondaryText" numberOfLines={1}>
-            {formatDuration(routine.estimatedDuration)} · {steps}
+            {routine.estimatedDuration > 0 ? `${formatDuration(routine.estimatedDuration)} · ` : ''}
+            {steps}
           </AppText>
         </View>
         <StatusBadge status={status} />
-      </PressableScale>
+      </Pressable>
     </View>
   );
 }
@@ -106,21 +103,21 @@ const styles = StyleSheet.create({
   timeColumn: {
     width: 48,
     alignItems: 'flex-end',
-    paddingTop: 14,
+    paddingTop: 15,
   },
-  lineColumn: {
-    width: 28,
+  railColumn: {
+    width: 26,
     alignItems: 'center',
   },
-  line: {
+  rail: {
     position: 'absolute',
     width: 2,
   },
-  node: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 3,
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
     marginTop: 16,
   },
   card: {
@@ -128,12 +125,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 12,
+    padding: 12,
+    marginBottom: 10,
   },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  tile: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },

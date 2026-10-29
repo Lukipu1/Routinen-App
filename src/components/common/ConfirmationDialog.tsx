@@ -3,8 +3,6 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from './AppText';
-import { PrimaryButton, SecondaryButton } from './Buttons';
-import { Button } from './Button';
 
 interface ConfirmationDialogProps {
   visible: boolean;
@@ -17,7 +15,12 @@ interface ConfirmationDialogProps {
   onCancel: () => void;
 }
 
-/** Centered confirmation dialog for irreversible or important actions. */
+/**
+ * System-style alert: a compact centered card with the title in headline
+ * weight, a short message, and the actions as text buttons separated by
+ * hairlines. Cancel is emphasised, a destructive action is red and never the
+ * bold default (HIG › Alerts).
+ */
 export function ConfirmationDialog({
   visible,
   title,
@@ -29,40 +32,45 @@ export function ConfirmationDialog({
   onCancel,
 }: ConfirmationDialogProps): React.ReactElement {
   const theme = useTheme();
+  const { colors } = theme;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable
-        style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}
-        onPress={onCancel}
-      >
+      <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={onCancel}>
         <Pressable
-          style={[
-            styles.card,
-            { backgroundColor: theme.colors.elevatedBackground, borderRadius: theme.radii.lg },
-          ]}
+          style={[styles.card, { backgroundColor: colors.elevatedBackground }]}
           onPress={(e) => e.stopPropagation()}
+          accessibilityViewIsModal
         >
-          <AppText variant="title" center>
-            {title}
-          </AppText>
-          {message ? (
-            <AppText
-              variant="body"
-              color="secondaryText"
-              center
-              style={{ marginTop: theme.spacing.sm }}
-            >
-              {message}
+          <View style={styles.body}>
+            <AppText variant="headline" center accessibilityRole="header">
+              {title}
             </AppText>
-          ) : null}
-          <View style={{ marginTop: theme.spacing.lg, gap: theme.spacing.sm }}>
-            {destructive ? (
-              <Button variant="destructive" title={confirmLabel} onPress={onConfirm} />
-            ) : (
-              <PrimaryButton title={confirmLabel} onPress={onConfirm} />
-            )}
-            <SecondaryButton title={cancelLabel} onPress={onCancel} />
+            {message ? (
+              <AppText variant="caption" center style={{ marginTop: 6, color: colors.primaryText }}>
+                {message}
+              </AppText>
+            ) : null}
           </View>
+          <View style={[styles.divider, { backgroundColor: colors.separator }]} />
+          <Pressable
+            onPress={onConfirm}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.action, pressed ? { backgroundColor: colors.fill } : null]}
+          >
+            <AppText variant="body" center style={{ color: destructive ? colors.error : colors.accent }}>
+              {confirmLabel}
+            </AppText>
+          </Pressable>
+          <View style={[styles.divider, { backgroundColor: colors.separator }]} />
+          <Pressable
+            onPress={onCancel}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.action, pressed ? { backgroundColor: colors.fill } : null]}
+          >
+            <AppText variant="body" weight="600" center style={{ color: colors.accent }}>
+              {cancelLabel}
+            </AppText>
+          </Pressable>
         </Pressable>
       </Pressable>
     </Modal>
@@ -77,8 +85,12 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   card: {
-    width: '100%',
-    maxWidth: 360,
-    padding: 24,
+    width: 280,
+    maxWidth: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
   },
+  body: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18 },
+  divider: { height: StyleSheet.hairlineWidth, width: '100%' },
+  action: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
 });

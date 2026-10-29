@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppHeader } from '../../components/common/AppHeader';
 import { AppSwitch } from '../../components/common/AppSwitch';
@@ -9,11 +9,12 @@ import { AppText } from '../../components/common/AppText';
 import { BottomSheet } from '../../components/common/BottomSheet';
 import { Card } from '../../components/common/Card';
 import { ConfirmationDialog } from '../../components/common/ConfirmationDialog';
-import { PressableScale } from '../../components/common/PressableScale';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { SectionHeader } from '../../components/common/SectionHeader';
 import { SettingRow } from '../../components/common/SettingRow';
 import { useToast } from '../../components/common/Toast';
+import { PHOTO_CREDITS } from '../../constants/photos';
+import { haptics } from '../../services/haptics';
 import { usePreferences, useUpdatePreferences } from '../../hooks/usePreferences';
 import { exportBackupFile, pickBackupFile, restoreBackup, type Backup } from '../../services/backup';
 import {
@@ -43,6 +44,18 @@ function Segmented<T extends string | number>({
   accessibilityLabel: string;
 }): React.ReactElement {
   const theme = useTheme();
+  // The selected segment is a raised white (or lighter grey) pill, like UISegmentedControl.
+  const selectedStyle =
+    theme.scheme === 'dark'
+      ? { backgroundColor: theme.colors.fillStrong }
+      : {
+          backgroundColor: theme.colors.secondaryBackground,
+          shadowColor: '#000000',
+          shadowOpacity: 0.12,
+          shadowRadius: 3,
+          shadowOffset: { width: 0, height: 1 },
+          elevation: 1,
+        };
   return (
     <View
       style={[styles.segmented, { backgroundColor: theme.colors.fill, borderRadius: theme.radii.sm }]}
@@ -52,25 +65,26 @@ function Segmented<T extends string | number>({
       {options.map((option) => {
         const selected = option.value === value;
         return (
-          <PressableScale
+          <Pressable
             key={String(option.value)}
-            onPress={() => onChange(option.value)}
-            haptic="selection"
-            scaleTo={0.97}
+            onPress={() => {
+              void haptics.selection();
+              onChange(option.value);
+            }}
             accessibilityRole="radio"
             accessibilityState={{ selected }}
             accessibilityLabel={option.label}
-            style={[
+            style={({ pressed }) => [
               styles.segment,
-              selected
-                ? [{ backgroundColor: theme.colors.elevatedBackground, borderRadius: theme.radii.sm }, theme.shadows.card]
-                : null,
+              { borderRadius: theme.radii.sm - 2 },
+              selected ? selectedStyle : null,
+              pressed && !selected ? { opacity: 0.6 } : null,
             ]}
           >
             <AppText variant="callout" weight={selected ? '600' : '400'} maxFontSizeMultiplier={1.4}>
               {option.label}
             </AppText>
-          </PressableScale>
+          </Pressable>
         );
       })}
     </View>
@@ -90,6 +104,7 @@ export function SettingsScreen(): React.ReactElement {
   const [confirmClear, setConfirmClear] = useState(false);
   const [askNotifications, setAskNotifications] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [creditsOpen, setCreditsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const version = Constants.expoConfig?.version ?? '1.0.0';
@@ -172,7 +187,7 @@ export function SettingsScreen(): React.ReactElement {
       <AppHeader title="Einstellungen" />
 
       <SectionHeader title="Darstellung" />
-      <Card style={styles.group}>
+      <Card style={styles.appearance}>
         <View style={styles.stack}>
           <AppText variant="body">Design</AppText>
           <Segmented<ThemePreference>
@@ -237,6 +252,7 @@ export function SettingsScreen(): React.ReactElement {
               accessibilityLabel="Reduzierte Bewegungen"
             />
           }
+          last
         />
       </Card>
 
@@ -247,14 +263,13 @@ export function SettingsScreen(): React.ReactElement {
           description="Alle Routinen und Verläufe als JSON-Datei teilen"
           icon="copy"
           onPress={() => void runGuarded(() => exportBackupFile(), null)}
-          right={<View />}
         />
         <SettingRow
           label="Sicherung importieren"
           description="Ersetzt die aktuellen Daten durch eine Sicherungsdatei"
           icon="checklist"
           onPress={chooseImport}
-          right={<View />}
+          last
         />
       </Card>
       <Card style={styles.group}>
@@ -264,7 +279,6 @@ export function SettingsScreen(): React.ReactElement {
           icon="copy"
           destructive
           onPress={() => setConfirmReset(true)}
-          right={<View />}
         />
         <SettingRow
           label="Alle Daten löschen"
@@ -272,13 +286,14 @@ export function SettingsScreen(): React.ReactElement {
           icon="trash"
           destructive
           onPress={() => setConfirmClear(true)}
-          right={<View />}
+          last
         />
       </Card>
 
       <SectionHeader title="Info" />
       <Card style={styles.group}>
-        <SettingRow label="Datenschutz" icon="checklist" onPress={() => setPrivacyOpen(true)} right={<View />} />
+        <SettingRow label="Datenschutz" icon="checklist" onPress={() => setPrivacyOpen(true)} />
+        <SettingRow label="Bildnachweise" icon="sun" onPress={() => setCreditsOpen(true)} />
         <SettingRow
           label="Version"
           icon="sparkles"
@@ -287,6 +302,7 @@ export function SettingsScreen(): React.ReactElement {
               {version}
             </AppText>
           }
+          last
         />
       </Card>
 
@@ -344,26 +360,33 @@ export function SettingsScreen(): React.ReactElement {
           externe Server. Benachrichtigungen werden vom Gerät selbst geplant.
         </AppText>
       </BottomSheet>
+      <BottomSheet visible={creditsOpen} onClose={() => setCreditsOpen(false)} title="Bildnachweise">
+        <AppText variant="body" color="secondaryText" style={{ marginBottom: 16 }}>
+          {PHOTO_CREDITS}
+        </AppText>
+      </BottomSheet>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   group: {
-    marginBottom: 8,
-    paddingVertical: 4,
+    marginBottom: 20,
+  },
+  appearance: {
+    marginBottom: 20,
   },
   stack: { gap: 10 },
   segmented: {
     flexDirection: 'row',
-    padding: 3,
-    gap: 3,
+    padding: 2,
+    gap: 2,
   },
   segment: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
 });

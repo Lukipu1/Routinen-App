@@ -1,12 +1,9 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  resolveOnRoutineColor,
-  resolveRoutineColor,
-  resolveRoutineTextColor,
-} from '../../constants/colors';
+import { photoForCategory } from '../../constants/photos';
 import { WEEKDAY_LONG, summariseWeekdays } from '../../constants/weekdays';
+import { haptics } from '../../services/haptics';
 import type { ISODateString, WeekStart } from '../../types/common';
 import type { Routine } from '../../types/routine';
 import { addDaysISO, parseISODate, todayISO } from '../../utils/datetime';
@@ -14,13 +11,14 @@ import { formatDuration, pluralize } from '../../utils/format';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from '../common/AppText';
 import { Icon } from '../common/Icon';
-import { PressableScale } from '../common/PressableScale';
 
 interface RoutineCardProps {
   routine: Routine;
   nextOccurrence?: ISODateString | null;
   onPress: () => void;
   weekStartsOn?: WeekStart;
+  /** Hides the hairline below the row (last row of a group). */
+  last?: boolean;
 }
 
 function relativeDayLabel(dateISO: ISODateString): string {
@@ -30,21 +28,26 @@ function relativeDayLabel(dateISO: ISODateString): string {
   return WEEKDAY_LONG[parseISODate(dateISO).getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6];
 }
 
+/**
+ * One row of the routines list: category photograph as a rounded thumbnail,
+ * title, a secondary line, and the next occurrence — like a row in Podcasts.
+ */
 export function RoutineCard({
   routine,
   nextOccurrence,
   onPress,
   weekStartsOn = 1,
+  last = false,
 }: RoutineCardProps): React.ReactElement {
   const theme = useTheme();
-  const color = resolveRoutineColor(routine.color);
-  const textColor = resolveRoutineTextColor(routine.color, theme.scheme);
+  const stepCount = routine.steps.length;
   const subtitle = [
-    formatDuration(routine.estimatedDuration),
-    `${routine.steps.length} ${pluralize(routine.steps.length, 'Schritt', 'Schritte')}`,
+    routine.estimatedDuration > 0 ? formatDuration(routine.estimatedDuration) : null,
+    `${stepCount} ${pluralize(stepCount, 'Schritt', 'Schritte')}`,
     summariseWeekdays(routine.schedule.weekdays, weekStartsOn),
-  ].join('  ·  ');
-
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const nextLabel = !routine.isActive
     ? 'Inaktiv'
     : nextOccurrence
@@ -52,70 +55,74 @@ export function RoutineCard({
       : 'Kein Zeitplan';
 
   return (
-    <PressableScale
-      onPress={onPress}
-      scaleTo={0.98}
+    <Pressable
+      onPress={() => {
+        void haptics.light();
+        onPress();
+      }}
       accessibilityRole="button"
       accessibilityLabel={`${routine.title}, ${subtitle}, ${nextLabel}`}
       accessibilityHint="Öffnet die Details"
-      style={[
-        styles.card,
-        theme.shadows.card,
-        {
-          backgroundColor: theme.colors.secondaryBackground,
-          borderRadius: theme.radii.lg,
-          padding: theme.spacing.base,
-          opacity: routine.isActive ? 1 : 0.6,
-        },
-      ]}
+      style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.colors.fill } : null]}
     >
-      <View style={[styles.iconCircle, { backgroundColor: color }]}>
-        <Icon name={routine.icon} size={24} color={resolveOnRoutineColor(routine.color)} />
-      </View>
-      <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <AppText variant="headline" numberOfLines={1} style={styles.title}>
-            {routine.title}
-          </AppText>
-          {routine.isSample ? (
-            <View style={[styles.tag, { backgroundColor: theme.colors.fill }]}>
-              <AppText variant="caption" color="secondaryText">
+      <Image
+        source={photoForCategory(routine.category)}
+        style={[styles.thumb, { opacity: routine.isActive ? 1 : 0.5 }]}
+        accessibilityIgnoresInvertColors
+      />
+      <View
+        style={[
+          styles.body,
+          { borderBottomColor: theme.colors.separator, borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth },
+        ]}
+      >
+        <View style={styles.textColumn}>
+          <View style={styles.titleRow}>
+            <AppText variant="headline" numberOfLines={1} style={styles.title}>
+              {routine.title}
+            </AppText>
+            {routine.isSample ? (
+              <AppText variant="caption" color="tertiaryText">
                 Beispiel
               </AppText>
-            </View>
-          ) : null}
+            ) : null}
+          </View>
+          <AppText variant="caption" color="secondaryText" numberOfLines={1}>
+            {subtitle}
+          </AppText>
+          <AppText variant="caption" color={routine.isActive ? 'secondaryText' : 'tertiaryText'} numberOfLines={1}>
+            {nextLabel}
+          </AppText>
         </View>
-        <AppText variant="caption" color="secondaryText" numberOfLines={1}>
-          {subtitle}
-        </AppText>
-        <AppText variant="caption" style={{ color: textColor, marginTop: 2 }} weight="600">
-          {nextLabel}
-        </AppText>
+        <Icon name="chevronRight" size={18} color={theme.colors.tertiaryText} strokeWidth={2.5} />
       </View>
-      <Icon name="chevronRight" size={20} color={theme.colors.tertiaryText} />
-    </PressableScale>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    paddingLeft: 16,
   },
-  iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  thumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    marginRight: 14,
+    backgroundColor: '#D1D1D6',
+  },
+  body: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingRight: 16,
+    minHeight: 76,
   },
-  body: { flex: 1, gap: 2 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  textColumn: { flex: 1, gap: 2 },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   title: { flexShrink: 1 },
-  tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
 });

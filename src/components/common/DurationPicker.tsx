@@ -14,7 +14,6 @@ interface DurationPickerProps {
   /** Selected duration in seconds, or `null` for an untimed step. */
   value: number | null;
   onChange: (seconds: number | null) => void;
-  accentColor?: string;
 }
 
 const MAX_MINUTES = 240;
@@ -24,13 +23,8 @@ const MAX_MINUTES = 240;
  * entry ("Andere…"). A value outside the presets (e.g. a template's 25 min)
  * is shown as its own selected chip instead of silently appearing unselected.
  */
-export function DurationPicker({
-  value,
-  onChange,
-  accentColor,
-}: DurationPickerProps): React.ReactElement {
+export function DurationPicker({ value, onChange }: DurationPickerProps): React.ReactElement {
   const theme = useTheme();
-  const accent = accentColor ?? theme.colors.accent;
   const [customOpen, setCustomOpen] = useState(false);
   const [customMinutes, setCustomMinutes] = useState('');
   const [customError, setCustomError] = useState<string | undefined>();
@@ -60,7 +54,6 @@ export function DurationPicker({
         accessibilityLabel="Ohne Zeitvorgabe"
         selected={value === null}
         onPress={() => onChange(null)}
-        accentColor={accent}
       />
       {DURATION_PRESETS.map((preset) => (
         <Chip
@@ -69,7 +62,6 @@ export function DurationPicker({
           accessibilityLabel={`${preset.label}uten`}
           selected={value === preset.seconds}
           onPress={() => onChange(preset.seconds)}
-          accentColor={accent}
         />
       ))}
       <Chip
@@ -77,7 +69,6 @@ export function DurationPicker({
         accessibilityLabel="Eigene Dauer"
         selected={!isPreset && value !== null}
         onPress={openCustom}
-        accentColor={accent}
       />
 
       <BottomSheet visible={customOpen} onClose={() => setCustomOpen(false)} title="Eigene Dauer">
@@ -96,7 +87,7 @@ export function DurationPicker({
           <AppText variant="caption" color="secondaryText">
             Der Schritt läuft dann als Countdown über diese Zeit.
           </AppText>
-          <PrimaryButton title="Übernehmen" onPress={confirmCustom} accentColor={accent} />
+          <PrimaryButton title="Übernehmen" onPress={confirmCustom} />
         </View>
       </BottomSheet>
     </View>

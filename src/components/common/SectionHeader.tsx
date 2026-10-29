@@ -9,11 +9,14 @@ interface SectionHeaderProps {
   trailing?: React.ReactNode;
 }
 
+/** Title-case section heading above a grouped card, with an optional trailing action. */
 export function SectionHeader({ title, trailing }: SectionHeaderProps): React.ReactElement {
   const theme = useTheme();
   return (
     <View style={[styles.row, { marginBottom: theme.spacing.sm }]}>
-      <AppText variant="headline">{title}</AppText>
+      <AppText variant="headline" accessibilityRole="header">
+        {title}
+      </AppText>
       {trailing}
     </View>
   );
@@ -24,5 +27,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 4,
   },
 });

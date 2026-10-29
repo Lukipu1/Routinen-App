@@ -1,17 +1,18 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '../../components/common/AppText';
 import { PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
+import { Card } from '../../components/common/Card';
 import { Chip } from '../../components/common/Chip';
 import { Icon } from '../../components/common/Icon';
-import { PressableScale } from '../../components/common/PressableScale';
 import { useToast } from '../../components/common/Toast';
-import { ROUTINE_COLORS, resolveOnRoutineColor, resolveRoutineColor } from '../../constants/colors';
+import { ONBOARDING_PHOTOS, photoForCategory } from '../../constants/photos';
 import { ROUTINE_TEMPLATES, findTemplate, templateToRoutine } from '../../data/templates';
 import { requestNotificationPermission } from '../../services/notifications';
+import { haptics } from '../../services/haptics';
 import { useUpdatePreferences } from '../../hooks/usePreferences';
 import { formatDuration, pluralize } from '../../utils/format';
 import { estimateDuration } from '../routines/draft';
@@ -20,15 +21,20 @@ import { useTheme } from '../../theme/ThemeProvider';
 
 const DAY_START_OPTIONS = [6, 7, 8, 9];
 
-function OnboardingArt({ icon, color }: { icon: string; color: string }): React.ReactElement {
+/** Calm 3:2 photograph above the page title; decorative, so hidden from screen readers. */
+function OnboardingPhoto({ source }: { source: React.ComponentProps<typeof Image>['source'] }): React.ReactElement {
+  const theme = useTheme();
+  const { width } = useWindowDimensions();
+  // Explicit size: `aspectRatio` alone is not honoured consistently on web.
+  const photoWidth = Math.min(width - 40, 420);
   return (
-    <View style={styles.art} accessible={false} importantForAccessibility="no-hide-descendants">
-      <View style={[styles.blob, { backgroundColor: ROUTINE_COLORS.teal, top: 10, left: 30, opacity: 0.25 }]} />
-      <View style={[styles.blob, { backgroundColor: ROUTINE_COLORS.orange, bottom: 0, right: 20, opacity: 0.25 }]} />
-      <View style={[styles.artCircle, { backgroundColor: color }]}>
-        <Icon name={icon} size={64} color="#FFFFFF" />
-      </View>
-    </View>
+    <Image
+      source={source}
+      style={[styles.photo, { width: photoWidth, height: Math.round((photoWidth * 2) / 3), borderRadius: theme.radii.lg }]}
+      resizeMode="cover"
+      accessible={false}
+      accessibilityIgnoresInvertColors
+    />
   );
 }
 
@@ -84,17 +90,17 @@ export function OnboardingScreen(): React.ReactElement {
     <SafeAreaView style={[styles.flex, { backgroundColor: theme.colors.background }]}>
       <View style={styles.skipRow}>
         {page < 3 ? (
-          <PressableScale
+          <Pressable
             onPress={() => void finish(false)}
             accessibilityRole="button"
             accessibilityLabel="Einführung überspringen"
             hitSlop={8}
-            style={styles.skip}
+            style={({ pressed }) => [styles.skip, { opacity: pressed ? 0.5 : 1 }]}
           >
-            <AppText variant="callout" color="secondaryText">
+            <AppText variant="body" style={{ color: theme.colors.accent }}>
               Überspringen
             </AppText>
-          </PressableScale>
+          </Pressable>
         ) : (
           <View />
         )}
@@ -103,7 +109,7 @@ export function OnboardingScreen(): React.ReactElement {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {page === 1 ? (
           <View style={styles.page}>
-            <OnboardingArt icon="sparkles" color={theme.colors.accent} />
+            <OnboardingPhoto source={ONBOARDING_PHOTOS.welcome} />
             <AppText variant="largeTitle" center accessibilityRole="header">
               Routinen, die sich in deinen Tag einfügen
             </AppText>
@@ -113,7 +119,7 @@ export function OnboardingScreen(): React.ReactElement {
           </View>
         ) : page === 2 ? (
           <View style={styles.page}>
-            <OnboardingArt icon="sunrise" color={ROUTINE_COLORS.orange} />
+            <OnboardingPhoto source={ONBOARDING_PHOTOS.dayStart} />
             <AppText variant="largeTitle" center accessibilityRole="header">
               Wann beginnt dein Tag?
             </AppText>
@@ -143,47 +149,59 @@ export function OnboardingScreen(): React.ReactElement {
             <AppText variant="largeTitle" center accessibilityRole="header">
               Wähle eine erste Routine
             </AppText>
-            <View style={styles.templateList} accessibilityRole="radiogroup">
-              {ROUTINE_TEMPLATES.map((template) => {
-                const selected = templateKey === template.key;
-                const color = resolveRoutineColor(template.color);
-                const stepCount = template.steps.length;
-                const duration = formatDuration(
-                  estimateDuration(template.steps.map((s) => ({ durationInSeconds: s.durationInSeconds }))),
-                );
-                return (
-                  <PressableScale
-                    key={template.key}
-                    onPress={() => setTemplateKey(template.key)}
-                    scaleTo={0.98}
-                    haptic="selection"
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={`${template.title}, ${stepCount} ${pluralize(stepCount, 'Schritt', 'Schritte')}, ${duration}`}
-                    style={[
-                      styles.templateCard,
-                      {
-                        backgroundColor: theme.colors.secondaryBackground,
-                        borderRadius: theme.radii.md,
-                        borderWidth: 2,
-                        borderColor: selected ? color : 'transparent',
-                      },
-                    ]}
-                  >
-                    <View style={[styles.templateIcon, { backgroundColor: color }]}>
-                      <Icon name={template.icon} size={22} color={resolveOnRoutineColor(template.color)} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <AppText variant="headline">{template.title}</AppText>
-                      <AppText variant="caption" color="secondaryText">
-                        {stepCount} {pluralize(stepCount, 'Schritt', 'Schritte')} · {duration}
-                      </AppText>
-                    </View>
-                    {selected ? <Icon name="check" size={22} color={color} /> : null}
-                  </PressableScale>
-                );
-              })}
-            </View>
+            <AppText variant="body" color="secondaryText" center>
+              Du kannst sie danach beliebig anpassen.
+            </AppText>
+            <Card padded={false} style={styles.templateList}>
+              <View accessibilityRole="radiogroup">
+                {ROUTINE_TEMPLATES.map((template, index) => {
+                  const selected = templateKey === template.key;
+                  const last = index === ROUTINE_TEMPLATES.length - 1;
+                  const stepCount = template.steps.length;
+                  const duration = formatDuration(
+                    estimateDuration(template.steps.map((s) => ({ durationInSeconds: s.durationInSeconds }))),
+                  );
+                  return (
+                    <Pressable
+                      key={template.key}
+                      onPress={() => {
+                        void haptics.selection();
+                        setTemplateKey(template.key);
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`${template.title}, ${stepCount} ${pluralize(stepCount, 'Schritt', 'Schritte')}, ${duration}`}
+                      style={({ pressed }) => [styles.templateRow, pressed ? { backgroundColor: theme.colors.fill } : null]}
+                    >
+                      <Image
+                        source={photoForCategory(template.category)}
+                        style={styles.templateThumb}
+                        accessibilityIgnoresInvertColors
+                      />
+                      <View
+                        style={[
+                          styles.templateBody,
+                          {
+                            borderBottomColor: theme.colors.separator,
+                            borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
+                          },
+                        ]}
+                      >
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <AppText variant="headline">{template.title}</AppText>
+                          <AppText variant="caption" color="secondaryText">
+                            {stepCount} {pluralize(stepCount, 'Schritt', 'Schritte')} · {duration}
+                          </AppText>
+                        </View>
+                        <View style={styles.checkSlot}>
+                          {selected ? <Icon name="check" size={22} color={theme.colors.accent} strokeWidth={2.75} /> : null}
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Card>
           </View>
         )}
       </ScrollView>
@@ -212,35 +230,32 @@ export function OnboardingScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  skipRow: { alignItems: 'flex-end', paddingHorizontal: 20, paddingVertical: 8, minHeight: 32 },
-  skip: { paddingHorizontal: 8, paddingVertical: 8 },
-  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingBottom: 16 },
-  page: { alignItems: 'center', gap: 18 },
-  art: { width: 200, height: 200, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  artCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
+  skipRow: { alignItems: 'flex-end', paddingHorizontal: 16, paddingVertical: 6, minHeight: 44 },
+  skip: { paddingHorizontal: 8, paddingVertical: 8, minHeight: 44, justifyContent: 'center' },
+  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingBottom: 16 },
+  page: { alignItems: 'center', gap: 14 },
+  photo: {
+    marginBottom: 10,
+    backgroundColor: '#D1D1D6',
   },
-  blob: { position: 'absolute', width: 90, height: 90, borderRadius: 45 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
-  templateList: { alignSelf: 'stretch', gap: 10, marginTop: 8 },
-  templateCard: {
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 4, marginBottom: 4 },
+  templateList: { alignSelf: 'stretch', marginTop: 8 },
+  templateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: 14,
-    minHeight: 64,
+    paddingLeft: 16,
   },
-  templateIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  templateThumb: { width: 56, height: 56, borderRadius: 12, marginRight: 14, backgroundColor: '#D1D1D6' },
+  templateBody: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingRight: 16,
+    minHeight: 76,
   },
+  checkSlot: { width: 24, alignItems: 'flex-end' },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',

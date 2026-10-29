@@ -35,21 +35,16 @@ export function statusLabel(status: TimelineStatus): string {
   return STATUS_CONFIG[status].label;
 }
 
+/** Small symbol + label, like the trailing detail text in a system list row. */
 export function StatusBadge({ status }: StatusBadgeProps): React.ReactElement {
   const theme = useTheme();
   const config = STATUS_CONFIG[status];
   const color = theme.colors[config.colorToken];
 
   return (
-    <View
-      style={[
-        styles.badge,
-        { backgroundColor: theme.colors.fill, borderRadius: theme.radii.pill },
-      ]}
-      accessibilityLabel={config.label}
-    >
-      <Icon name={config.icon} size={13} color={color} />
-      <AppText variant="caption" style={{ color }} weight="600">
+    <View style={styles.badge} accessibilityLabel={config.label}>
+      <Icon name={config.icon} size={13} color={color} strokeWidth={2.5} />
+      <AppText variant="caption" style={{ color }} weight="600" maxFontSizeMultiplier={1.3}>
         {config.label}
       </AppText>
     </View>
@@ -61,8 +56,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
     alignSelf: 'flex-start',
   },
 });

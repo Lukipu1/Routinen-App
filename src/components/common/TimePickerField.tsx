@@ -1,43 +1,50 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { haptics } from '../../services/haptics';
 import type { TimeString } from '../../types/common';
 import { timeToMinutes } from '../../utils/datetime';
-import { onColorForHex } from '../../constants/colors';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppText } from './AppText';
 import { BottomSheet } from './BottomSheet';
 import { PrimaryButton } from './Buttons';
 import { Icon } from './Icon';
-import { PressableScale } from './PressableScale';
 
 interface TimePickerFieldProps {
   value: TimeString;
   onChange: (value: TimeString) => void;
   label?: string;
-  accentColor?: string;
+  /**
+   * `standalone` draws its own rounded field (for sheets and forms);
+   * `grouped` renders as a plain row inside a grouped card, with a hairline
+   * unless it is the last row.
+   */
+  appearance?: 'standalone' | 'grouped';
+  last?: boolean;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
+/** Height of one picker row; used to scroll the selected value into view. */
+const OPTION_HEIGHT = 48;
 
 function pad(value: number): string {
   return String(value).padStart(2, '0');
 }
 
-/** Field that opens a bottom-sheet hour/minute picker. */
+/** Label + value row that opens a bottom-sheet hour/minute picker. */
 export function TimePickerField({
   value,
   onChange,
   label,
-  accentColor,
+  appearance = 'standalone',
+  last = false,
 }: TimePickerFieldProps): React.ReactElement {
   const theme = useTheme();
-  const accent = accentColor ?? theme.colors.accent;
   const [open, setOpen] = useState(false);
-  const initial = useMemo(() => timeToMinutes(value), [value]);
-  const [hour, setHour] = useState(Math.floor(initial / 60));
-  const [minute, setMinute] = useState(Math.round((initial % 60) / 5) * 5);
+  const [hour, setHour] = useState(Math.floor(timeToMinutes(value) / 60));
+  const [minute, setMinute] = useState(Math.round((timeToMinutes(value) % 60) / 5) * 5);
+  const grouped = appearance === 'grouped';
 
   const openSheet = (): void => {
     const minutes = timeToMinutes(value);
@@ -51,59 +58,49 @@ export function TimePickerField({
     setOpen(false);
   };
 
-  const renderColumn = (
-    items: number[],
-    selected: number,
-    onSelect: (v: number) => void,
-    columnLabel: string,
-    unit: string,
-  ): React.ReactElement => (
-    <PickerColumn
-      items={items}
-      selected={selected}
-      onSelect={onSelect}
-      columnLabel={columnLabel}
-      unit={unit}
-      accent={accent}
-      open={open}
-    />
-  );
-
   return (
     <>
-      <PressableScale
+      <Pressable
         onPress={openSheet}
-        scaleTo={0.99}
         accessibilityRole="button"
         accessibilityLabel={`${label ?? 'Uhrzeit'}: ${value}`}
-        style={[
+        accessibilityHint="Öffnet die Uhrzeitauswahl"
+        style={({ pressed }) => [
           styles.field,
-          { backgroundColor: theme.colors.fill, borderRadius: theme.radii.md },
+          grouped
+            ? { backgroundColor: pressed ? theme.colors.fill : 'transparent' }
+            : { backgroundColor: theme.colors.fill, borderRadius: theme.radii.md, opacity: pressed ? 0.7 : 1 },
         ]}
       >
-        {label ? <AppText variant="body">{label}</AppText> : <View />}
-        <View style={styles.fieldValue}>
-          <Icon name="clock" size={18} color={theme.colors.secondaryText} />
-          <AppText variant="body" weight="600">
-            {value}
-          </AppText>
+        <View
+          style={[
+            styles.inner,
+            grouped
+              ? { borderBottomColor: theme.colors.separator, borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth }
+              : null,
+          ]}
+        >
+          <AppText variant="body">{label ?? 'Uhrzeit'}</AppText>
+          <View style={styles.fieldValue}>
+            <AppText variant="body" color="secondaryText">
+              {value}
+            </AppText>
+            <Icon name="chevronRight" size={18} color={theme.colors.tertiaryText} strokeWidth={2.5} />
+          </View>
         </View>
-      </PressableScale>
+      </Pressable>
 
       <BottomSheet visible={open} onClose={() => setOpen(false)} title="Uhrzeit wählen">
         <View style={styles.pickerRow}>
-          {renderColumn(HOURS, hour, setHour, 'Stunden', 'Uhr')}
+          <PickerColumn items={HOURS} selected={hour} onSelect={setHour} columnLabel="Stunden" unit="Uhr" open={open} />
           <AppText variant="display">:</AppText>
-          {renderColumn(MINUTES, minute, setMinute, 'Minuten', 'Minuten')}
+          <PickerColumn items={MINUTES} selected={minute} onSelect={setMinute} columnLabel="Minuten" unit="Minuten" open={open} />
         </View>
-        <PrimaryButton title="Fertig" onPress={confirm} accentColor={accent} />
+        <PrimaryButton title="Fertig" onPress={confirm} />
       </BottomSheet>
     </>
   );
 }
-
-/** Height of one picker row; used to scroll the selected value into view. */
-const OPTION_HEIGHT = 48;
 
 function PickerColumn({
   items,
@@ -111,7 +108,6 @@ function PickerColumn({
   onSelect,
   columnLabel,
   unit,
-  accent,
   open,
 }: {
   items: number[];
@@ -119,7 +115,6 @@ function PickerColumn({
   onSelect: (v: number) => void;
   columnLabel: string;
   unit: string;
-  accent: string;
   open: boolean;
 }): React.ReactElement {
   const theme = useTheme();
@@ -136,6 +131,7 @@ function PickerColumn({
     // Only on open: scrolling on every selection would fight the user's finger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
   return (
     <ScrollView
       ref={ref}
@@ -147,26 +143,25 @@ function PickerColumn({
       {items.map((item) => {
         const isSelected = item === selected;
         return (
-          <PressableScale
+          <Pressable
             key={item}
-            onPress={() => onSelect(item)}
-            haptic="selection"
-            scaleTo={0.95}
+            onPress={() => {
+              void haptics.selection();
+              onSelect(item);
+            }}
             accessibilityRole="radio"
             accessibilityState={{ selected: isSelected }}
             accessibilityLabel={`${pad(item)} ${unit}`}
-            style={[
+            style={({ pressed }) => [
               styles.option,
-              isSelected ? { backgroundColor: accent, borderRadius: theme.radii.sm } : null,
+              isSelected ? { backgroundColor: theme.colors.fill, borderRadius: theme.radii.sm } : null,
+              pressed ? { opacity: 0.6 } : null,
             ]}
           >
-            <AppText
-              variant="title"
-              style={{ color: isSelected ? onColorForHex(accent) : theme.colors.primaryText }}
-            >
+            <AppText variant="title" weight={isSelected ? '600' : '400'} color={isSelected ? 'primaryText' : 'secondaryText'}>
               {pad(item)}
             </AppText>
-          </PressableScale>
+          </Pressable>
         );
       })}
     </ScrollView>
@@ -175,16 +170,20 @@ function PickerColumn({
 
 const styles = StyleSheet.create({
   field: {
+    paddingLeft: 16,
+  },
+  inner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    paddingRight: 16,
+    minHeight: 48,
   },
   fieldValue: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   pickerRow: {
     flexDirection: 'row',
@@ -194,9 +193,7 @@ const styles = StyleSheet.create({
     height: 220,
     marginBottom: 16,
   },
-  column: {
-    width: 80,
-  },
+  column: { width: 96 },
   option: {
     alignItems: 'center',
     justifyContent: 'center',

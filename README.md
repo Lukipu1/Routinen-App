@@ -165,6 +165,39 @@ Einstellungen liegen separat in AsyncStorage (Zustand Persist, versioniert).
 - **Design-Tokens überall.** Farben, Abstände, Kontrastvarianten für helle
   Routinenfarben und Textskalierung kommen aus dem Theme (Light & Dark).
 
+## Gestaltung
+
+Die Oberfläche folgt den Apple Human Interface Guidelines, umgesetzt mit
+einem offenen „Apple Design“-Skill für Claude
+(<https://github.com/dickwu/apple-design-skill>, ergänzt um
+<https://github.com/sanuponnulli/skills>):
+
+- **Eine Akzentfarbe.** Nur interaktive Elemente sind blau (Buttons, Chips,
+  Auswahl, Tab). Routinenfarben markieren ausschließlich die Identität einer
+  Routine (Kacheln, Punkte auf der Zeitleiste, Fortschrittsring).
+- **Hierarchie durch Stil, nicht Größe.** Pro Ansicht ein gefüllter Primär-
+  Button, getönte Sekundär-Buttons, reine Textbuttons für Nebensächliches,
+  destruktive Aktionen getönt rot und nie als Standard; alle als Kapseln mit
+  mindestens 44 pt Tippfläche, Druckzustand durch Abdunkeln.
+- **Gruppierte Listen statt Karten mit Schatten.** Einträge sitzen als
+  abgerundete Gruppen auf dem gruppierten Hintergrund mit Haarlinien-Trennern;
+  Schatten gibt es nur für Elemente, die wirklich schweben (Foto-Karte).
+- **Fotografie nur, wo sie etwas trägt.** Jede Kategorie hat ein ruhiges,
+  echtes Foto: auf der „Als Nächstes“-Karte, im Kopf der Detailansicht, als
+  Miniatur in Listen und im Onboarding. Der Rest bleibt still.
+- **Systemfarben und Dynamic Type.** Semantische Farben für Hell und Dunkel,
+  Statusangaben immer als Symbol plus Text, Schriftskalierung mit Obergrenzen
+  nur in der Bedienleiste.
+
+### Fotos
+
+Die Fotos in `assets/photos/` stammen von Pixabay (Pixabay Content License,
+frei für kommerzielle Nutzung, keine Namensnennung nötig) und wurden über das
+Archiv „sample-images“ von Yavuz Çeliker
+(<https://github.com/yavuzceliker/sample-images>) bezogen und auf 3:2
+(1200 × 800) zugeschnitten. Der Hinweis ist in der App unter
+*Einstellungen → Info → Bildnachweise* hinterlegt.
+
 ## Barrierefreiheit
 
 Alle Bedienelemente haben deutsche Namen und Rollen (Radio, Checkbox,

@@ -1,11 +1,12 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { AppText } from '../../../components/common/AppText';
-import { Icon } from '../../../components/common/Icon';
+import { Card } from '../../../components/common/Card';
 import { SectionHeader } from '../../../components/common/SectionHeader';
 import { StepListItem } from '../../../components/routine/StepListItem';
-import { resolveOnRoutineColor } from '../../../constants/colors';
+import { CATEGORY_META } from '../../../constants/categories';
+import { photoForCategory } from '../../../constants/photos';
 import { summariseWeekdays } from '../../../constants/weekdays';
 import type { WeekStart } from '../../../types/common';
 import { formatDuration, pluralize } from '../../../utils/format';
@@ -20,26 +21,26 @@ interface Props {
   weekStartsOn: WeekStart;
 }
 
-/** Page 4: read-only overview before saving. */
+/** Page 4: read-only overview before saving, laid out like the detail screen. */
 export function StepSummary({ draft, accent, totalDuration, weekStartsOn }: Props): React.ReactElement {
   const theme = useTheme();
   const stepCount = draft.steps.length;
   return (
-    <View style={{ gap: theme.spacing.base }}>
+    <View style={{ gap: theme.spacing.lg }}>
       <View style={styles.summaryHeader}>
-        <View style={[styles.summaryIcon, { backgroundColor: accent }]}>
-          <Icon name={draft.icon} size={28} color={resolveOnRoutineColor(draft.color)} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title">{draft.title || 'Ohne Namen'}</AppText>
+        <Image source={photoForCategory(draft.category)} style={styles.thumb} accessibilityIgnoresInvertColors />
+        <View style={{ flex: 1, gap: 2 }}>
+          <AppText variant="title" numberOfLines={2}>
+            {draft.title || 'Ohne Namen'}
+          </AppText>
           <AppText variant="callout" color="secondaryText">
             {totalDuration > 0 ? `${formatDuration(totalDuration)} · ` : ''}
-            {stepCount} {pluralize(stepCount, 'Schritt', 'Schritte')}
+            {stepCount} {pluralize(stepCount, 'Schritt', 'Schritte')} · {CATEGORY_META[draft.category].label}
           </AppText>
         </View>
       </View>
 
-      <View style={[styles.summaryBox, { backgroundColor: theme.colors.secondaryBackground, borderRadius: theme.radii.md }]}>
+      <Card padded={false}>
         <SummaryRow label="Wochentage" value={summariseWeekdays(draft.schedule.weekdays, weekStartsOn)} />
         <SummaryRow
           label="Startzeit"
@@ -50,11 +51,11 @@ export function StepSummary({ draft, accent, totalDuration, weekStartsOn }: Prop
           value={draft.reminder.enabled ? reminderLeadLabel(draft.reminder.minutesBefore) : 'Aus'}
           last
         />
-      </View>
+      </Card>
 
       <View>
         <SectionHeader title="Schritte" />
-        <View style={[styles.summaryBox, { backgroundColor: theme.colors.secondaryBackground, borderRadius: theme.radii.md }]}>
+        <Card padded={false}>
           {draft.steps.map((s, index) => (
             <StepListItem
               key={s.id}
@@ -68,9 +69,10 @@ export function StepSummary({ draft, accent, totalDuration, weekStartsOn }: Prop
               }}
               index={index}
               accentColor={accent}
+              last={index === draft.steps.length - 1}
             />
           ))}
-        </View>
+        </Card>
       </View>
     </View>
   );
@@ -79,36 +81,34 @@ export function StepSummary({ draft, accent, totalDuration, weekStartsOn }: Prop
 function SummaryRow({ label, value, last }: { label: string; value: string; last?: boolean }): React.ReactElement {
   const theme = useTheme();
   return (
-    <View
-      style={[
-        styles.summaryRow,
-        { borderBottomColor: theme.colors.separator, borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth },
-      ]}
-    >
-      <AppText variant="body" color="secondaryText">
-        {label}
-      </AppText>
-      <AppText variant="body" weight="600">
-        {value}
-      </AppText>
+    <View style={styles.rowOuter}>
+      <View
+        style={[
+          styles.row,
+          { borderBottomColor: theme.colors.separator, borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth },
+        ]}
+      >
+        <AppText variant="body">{label}</AppText>
+        <AppText variant="body" color="secondaryText" style={styles.value} numberOfLines={1}>
+          {value}
+        </AppText>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  summaryIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  summaryBox: { paddingHorizontal: 16, paddingVertical: 4 },
-  summaryRow: {
+  summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 4 },
+  thumb: { width: 64, height: 64, borderRadius: 14, backgroundColor: '#D1D1D6' },
+  rowOuter: { paddingLeft: 16 },
+  row: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
     paddingVertical: 12,
+    paddingRight: 16,
+    minHeight: 48,
   },
+  value: { flexShrink: 1, textAlign: 'right' },
 });

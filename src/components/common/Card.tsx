@@ -6,11 +6,15 @@ import { useTheme } from '../../theme/ThemeProvider';
 interface CardProps extends Omit<ViewProps, 'style'> {
   children: React.ReactNode;
   padded?: boolean;
+  /** Floats above the content (soft shadow). Rare: grouped content sits flat. */
   elevated?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
-/** Rounded surface used for grouped content. */
+/**
+ * Grouped surface in the iOS style: a rounded white (or dark grey) cell on the
+ * grouped background, no border and no shadow unless it genuinely floats.
+ */
 export function Card({
   children,
   padded = true,
@@ -25,13 +29,12 @@ export function Card({
       accessible={rest.accessibilityLabel !== undefined ? true : undefined}
       style={[
         {
-          backgroundColor: elevated
-            ? theme.colors.elevatedBackground
-            : theme.colors.secondaryBackground,
+          backgroundColor: theme.colors.secondaryBackground,
           borderRadius: theme.radii.lg,
           padding: padded ? theme.spacing.base : 0,
+          overflow: elevated ? 'visible' : 'hidden',
         },
-        elevated ? theme.shadows.card : null,
+        elevated ? theme.shadows.elevated : null,
         style,
       ]}
       {...rest}

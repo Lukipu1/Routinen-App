@@ -1,22 +1,23 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import {
   PICKABLE_COLORS,
   ROUTINE_COLORS,
   ROUTINE_COLOR_LABELS,
-  resolveOnRoutineColor,
   type RoutineColorKey,
 } from '../../constants/colors';
-import { Icon } from '../common/Icon';
-import { PressableScale } from '../common/PressableScale';
+import { haptics } from '../../services/haptics';
 
 interface ColorPickerProps {
   value: RoutineColorKey;
   onChange: (color: RoutineColorKey) => void;
 }
 
-/** Row of selectable accent-colour swatches. */
+/**
+ * Row of colour swatches, like the colour picker in Reminders: the selected
+ * swatch is marked by a ring in its own colour, not by an extra symbol.
+ */
 export function ColorPicker({ value, onChange }: ColorPickerProps): React.ReactElement {
   return (
     <View style={styles.grid} accessibilityRole="radiogroup">
@@ -24,18 +25,22 @@ export function ColorPicker({ value, onChange }: ColorPickerProps): React.ReactE
         const isSelected = colorKey === value;
         const hex = ROUTINE_COLORS[colorKey];
         return (
-          <PressableScale
+          <Pressable
             key={colorKey}
-            onPress={() => onChange(colorKey)}
-            haptic="selection"
-            scaleTo={0.9}
+            onPress={() => {
+              void haptics.selection();
+              onChange(colorKey);
+            }}
             accessibilityRole="radio"
             accessibilityState={{ selected: isSelected }}
             accessibilityLabel={`Farbe ${ROUTINE_COLOR_LABELS[colorKey]}`}
-            style={[styles.swatch, { backgroundColor: hex }]}
+            style={({ pressed }) => [
+              styles.ring,
+              { borderColor: isSelected ? hex : 'transparent', opacity: pressed ? 0.7 : 1 },
+            ]}
           >
-            {isSelected ? <Icon name="check" size={20} color={resolveOnRoutineColor(colorKey)} /> : null}
-          </PressableScale>
+            <View style={[styles.swatch, { backgroundColor: hex }]} />
+          </Pressable>
         );
       })}
     </View>
@@ -46,13 +51,19 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 8,
   },
-  swatch: {
+  ring: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    borderWidth: 2.5,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  swatch: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
   },
 });

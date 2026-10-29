@@ -12,47 +12,31 @@ interface EmptyStateProps {
   message?: string;
   actionLabel?: string;
   onAction?: () => void;
-  accentColor?: string;
 }
 
-/** Friendly empty placeholder built from a simple icon + shape, not artwork. */
+/** Quiet empty placeholder: a symbol, a title, one sentence, one action. */
 export function EmptyState({
   icon,
   title,
   message,
   actionLabel,
   onAction,
-  accentColor,
 }: EmptyStateProps): React.ReactElement {
   const theme = useTheme();
-  const accent = accentColor ?? theme.colors.accent;
-
   return (
-    <View style={[styles.container, { padding: theme.spacing.xl }]}>
-      <View
-        style={[
-          styles.iconCircle,
-          { backgroundColor: theme.colors.accentMuted, marginBottom: theme.spacing.lg },
-        ]}
-      >
-        <Icon name={icon} size={40} color={accent} />
-      </View>
-      <AppText variant="title" center>
+    <View style={[styles.container, { paddingVertical: theme.spacing.xxxl, paddingHorizontal: theme.spacing.xl }]}>
+      <Icon name={icon} size={44} color={theme.colors.tertiaryText} strokeWidth={1.5} />
+      <AppText variant="title" center style={{ marginTop: theme.spacing.base }}>
         {title}
       </AppText>
       {message ? (
-        <AppText
-          variant="body"
-          color="secondaryText"
-          center
-          style={{ marginTop: theme.spacing.sm }}
-        >
+        <AppText variant="callout" color="secondaryText" center style={{ marginTop: theme.spacing.sm, maxWidth: 320 }}>
           {message}
         </AppText>
       ) : null}
       {actionLabel && onAction ? (
-        <View style={{ marginTop: theme.spacing.xl, alignSelf: 'stretch' }}>
-          <PrimaryButton title={actionLabel} onPress={onAction} accentColor={accent} />
+        <View style={{ marginTop: theme.spacing.xl }}>
+          <PrimaryButton title={actionLabel} onPress={onAction} fullWidth={false} />
         </View>
       ) : null}
     </View>
@@ -61,13 +45,6 @@ export function EmptyState({
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

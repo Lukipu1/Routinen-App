@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { AppHeader } from '../../components/common/AppHeader';
 import { AppText } from '../../components/common/AppText';
 import { BottomSheet } from '../../components/common/BottomSheet';
-import { FloatingActionButton, PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
+import { IconButton, PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -39,9 +39,9 @@ function DayProgressCard({
     skipped > 0 ? ` · ${skipped} übersprungen` : ''
   }`;
   return (
-    <Card elevated style={styles.progressCard} accessibilityLabel={`Tagesfortschritt: ${summary}`}>
-      <ProgressRing progress={fraction} size={76} strokeWidth={9}>
-        <AppText variant="headline">{`${completed}/${total}`}</AppText>
+    <Card style={styles.progressCard} accessibilityLabel={`Tagesfortschritt: ${summary}`}>
+      <ProgressRing progress={fraction} size={56} strokeWidth={7}>
+        <AppText variant="caption" weight="600">{`${completed}/${total}`}</AppText>
       </ProgressRing>
       <View style={styles.progressText}>
         <AppText variant="headline">Tagesfortschritt</AppText>
@@ -101,7 +101,18 @@ export function TodayScreen(): React.ReactElement {
   return (
     <View style={styles.flex}>
       <ScreenContainer scroll>
-        <AppHeader subtitle={dateLabel} title={greeting} />
+        <AppHeader
+          subtitle={dateLabel}
+          title={greeting}
+          trailing={
+            <IconButton
+              iconName="plus"
+              tone="tinted"
+              accessibilityLabel="Routine hinzufügen"
+              onPress={() => setAddMode('choice')}
+            />
+          }
+        />
 
         {planned.length === 0 ? (
           <EmptyState
@@ -121,6 +132,8 @@ export function TodayScreen(): React.ReactElement {
           />
         ) : (
           <View style={{ gap: theme.spacing.base }}>
+            {next ? <NextRoutineCard planned={next} onPress={() => startOrResume(next)} /> : null}
+
             <DayProgressCard
               completed={progress.completed}
               total={progress.total}
@@ -128,14 +141,12 @@ export function TodayScreen(): React.ReactElement {
               fraction={progress.fraction}
             />
 
-            {next ? <NextRoutineCard planned={next} onPress={() => startOrResume(next)} /> : null}
-
             {conflicts.length > 0 ? (
-              <Card style={{ backgroundColor: theme.colors.accentMuted }}>
+              <Card>
                 <View style={styles.conflictRow}>
                   <Icon name="clock" size={18} color={theme.colors.warningText} />
                   <View style={{ flex: 1, gap: 2 }}>
-                    <AppText variant="callout">
+                    <AppText variant="headline">
                       {conflicts.length}{' '}
                       {pluralize(conflicts.length, 'Zeitüberschneidung', 'Zeitüberschneidungen')}
                     </AppText>
@@ -149,7 +160,7 @@ export function TodayScreen(): React.ReactElement {
               </Card>
             ) : null}
 
-            <View>
+            <View style={{ marginTop: theme.spacing.xs }}>
               <SectionHeader title="Tagesablauf" />
               {planned.map((item, index) => (
                 <TimelineItem
@@ -164,13 +175,6 @@ export function TodayScreen(): React.ReactElement {
           </View>
         )}
       </ScreenContainer>
-
-      <View style={styles.fab}>
-        <FloatingActionButton
-          accessibilityLabel="Routine hinzufügen"
-          onPress={() => setAddMode('choice')}
-        />
-      </View>
 
       <PlannedActionsSheet
         planned={actionItem}
@@ -222,9 +226,4 @@ const styles = StyleSheet.create({
   },
   progressText: { flex: 1, gap: 2 },
   conflictRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-  },
 });

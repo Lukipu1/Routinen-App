@@ -14,13 +14,12 @@ import type { RoutineDraft } from '../draft';
 interface Props {
   draft: RoutineDraft;
   patch: (partial: Partial<RoutineDraft>) => void;
-  accent: string;
   /** Shown inline once the user tried to continue without a name. */
   titleError?: string;
 }
 
 /** Page 1: name, symbol, colour and category. */
-export function StepBasics({ draft, patch, accent, titleError }: Props): React.ReactElement {
+export function StepBasics({ draft, patch, titleError }: Props): React.ReactElement {
   const theme = useTheme();
   return (
     <View style={{ gap: theme.spacing.lg }}>
@@ -35,7 +34,7 @@ export function StepBasics({ draft, patch, accent, titleError }: Props): React.R
       />
       <View>
         <SectionHeader title="Symbol" />
-        <IconPicker value={draft.icon} onChange={(icon) => patch({ icon })} accentColor={accent} />
+        <IconPicker value={draft.icon} onChange={(icon) => patch({ icon })} />
       </View>
       <View>
         <SectionHeader title="Farbe" />
@@ -50,7 +49,6 @@ export function StepBasics({ draft, patch, accent, titleError }: Props): React.R
               label={CATEGORY_META[category].label}
               selected={draft.category === category}
               onPress={() => patch({ category })}
-              accentColor={accent}
             />
           ))}
         </View>

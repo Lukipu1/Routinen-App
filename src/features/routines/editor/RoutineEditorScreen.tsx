@@ -135,7 +135,7 @@ export function RoutineEditorScreen(): React.ReactElement {
         accessibilityRole="progressbar"
         accessibilityValue={{ min: 0, max: TOTAL_PAGES, now: page }}
       >
-        <View style={{ width: `${(page / TOTAL_PAGES) * 100}%`, height: '100%', backgroundColor: accent }} />
+        <View style={{ width: `${(page / TOTAL_PAGES) * 100}%`, height: '100%', backgroundColor: theme.colors.accent }} />
       </View>
 
       <KeyboardAvoidingView
@@ -148,19 +148,17 @@ export function RoutineEditorScreen(): React.ReactElement {
           showsVerticalScrollIndicator={false}
         >
           {page === 1 ? (
-            <StepBasics draft={draft} patch={patch} accent={accent} titleError={pageError ?? undefined} />
+            <StepBasics draft={draft} patch={patch} titleError={pageError ?? undefined} />
           ) : page === 2 ? (
             <StepSteps
               draft={draft}
               setDraft={setDraft}
-              accent={accent}
               errors={attempted ? validation.errors.stepTitles : undefined}
             />
           ) : page === 3 ? (
             <StepSchedule
               draft={draft}
               patch={patch}
-              accent={accent}
               totalDuration={totalDuration}
               weekStartsOn={preferences.weekStartsOn}
               notificationsEnabled={preferences.notificationsEnabled}
@@ -179,13 +177,13 @@ export function RoutineEditorScreen(): React.ReactElement {
         <View style={[styles.footer, { borderTopColor: theme.colors.separator }]}>
           {page > 1 ? <SecondaryButton title="Zurück" onPress={goBack} fullWidth={false} /> : <View />}
           {page < TOTAL_PAGES ? (
-            <PrimaryButton title="Weiter" onPress={goNext} accentColor={accent} fullWidth={false} style={styles.grow} />
+            <PrimaryButton title="Weiter" onPress={goNext} fullWidth={false} style={styles.grow} />
           ) : (
             <PrimaryButton
               title="Routine speichern"
               onPress={save}
               loading={saving}
-              accentColor={accent}
+             
               fullWidth={false}
               style={styles.grow}
             />

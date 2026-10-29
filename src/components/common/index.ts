@@ -4,7 +4,7 @@ export { Chip } from './Chip';
 export { AppHeader } from './AppHeader';
 export { Button } from './Button';
 export type { ButtonVariant } from './Button';
-export { PrimaryButton, SecondaryButton, IconButton, FloatingActionButton } from './Buttons';
+export { PrimaryButton, SecondaryButton, IconButton } from './Buttons';
 export { BottomSheet } from './BottomSheet';
 export { Card } from './Card';
 export { ConfirmationDialog } from './ConfirmationDialog';

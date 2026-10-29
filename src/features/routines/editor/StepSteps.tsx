@@ -18,13 +18,12 @@ import {
 interface Props {
   draft: RoutineDraft;
   setDraft: React.Dispatch<React.SetStateAction<RoutineDraft>>;
-  accent: string;
   /** Per-step errors, shown only after the user tried to continue. */
   errors?: Record<string, string>;
 }
 
 /** Page 2: the ordered list of steps. */
-export function StepSteps({ draft, setDraft, accent, errors }: Props): React.ReactElement {
+export function StepSteps({ draft, setDraft, errors }: Props): React.ReactElement {
   const theme = useTheme();
   const toast = useToast();
 
@@ -51,7 +50,6 @@ export function StepSteps({ draft, setDraft, accent, errors }: Props): React.Rea
           step={stepDraft}
           index={index}
           total={draft.steps.length}
-          accentColor={accent}
           error={errors?.[stepDraft.id]}
           onChange={(p) => setDraft((current) => updateStep(current, stepDraft.id, p))}
           onRemove={() => remove(stepDraft, index)}

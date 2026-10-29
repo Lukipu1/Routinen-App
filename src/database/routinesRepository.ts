@@ -1,5 +1,5 @@
 import type { Routine } from '../types/routine';
-import { getDatabase } from './client';
+import { getDatabase, withWriteTransaction } from './client';
 import {
   rowToRoutine,
   serialize,
@@ -47,7 +47,7 @@ export async function getRoutineById(id: string): Promise<Routine | null> {
  */
 export async function saveRoutine(routine: Routine): Promise<void> {
   const db = await getDatabase();
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await withWriteTransaction(db, async (txn) => {
     await txn.runAsync(
       `INSERT INTO routines (
         id, title, description, icon, color, category, estimated_duration,

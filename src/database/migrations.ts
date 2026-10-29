@@ -1,5 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { withWriteTransaction } from './client';
+
 /**
  * Schema migrations. Each migration has a version and idempotent SQL. On
  * startup, `runMigrations` applies every migration newer than the database's
@@ -126,7 +128,7 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
     if (migration.version > current) {
       // Schema change and version bump commit together, so a crash in between
       // can never leave a half-applied migration that looks finished.
-      await db.withExclusiveTransactionAsync(async (txn) => {
+      await withWriteTransaction(db, async (txn) => {
         await txn.execAsync(migration.sql);
         // PRAGMA does not accept bound parameters; the version is a trusted int.
         await txn.execAsync(`PRAGMA user_version = ${migration.version};`);

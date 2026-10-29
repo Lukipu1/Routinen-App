@@ -1,4 +1,4 @@
-import { getDatabase } from './client';
+import { getDatabase, withWriteTransaction } from './client';
 
 interface MetaRow {
   value: string;
@@ -41,7 +41,7 @@ export async function countRoutines(): Promise<number> {
  */
 export async function clearAllData(): Promise<void> {
   const db = await getDatabase();
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await withWriteTransaction(db, async (txn) => {
     await txn.execAsync(
       `DELETE FROM plan_overrides;
        DELETE FROM completions;

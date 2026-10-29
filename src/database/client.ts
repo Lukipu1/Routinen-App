@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
 import { DATABASE_NAME } from '../constants/app';
 import { runMigrations } from './migrations';
@@ -24,6 +25,23 @@ export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
       });
   }
   return dbPromise;
+}
+
+/**
+ * Runs `task` inside a write transaction. On native the transaction is
+ * exclusive, so interleaved writes from elsewhere cannot slip in between the
+ * statements; on web expo-sqlite has no exclusive mode, so the plain
+ * transaction is used there.
+ */
+export async function withWriteTransaction(
+  db: SQLite.SQLiteDatabase,
+  task: (tx: SQLite.SQLiteDatabase) => Promise<void>,
+): Promise<void> {
+  if (Platform.OS === 'web') {
+    await db.withTransactionAsync(() => task(db));
+    return;
+  }
+  await db.withExclusiveTransactionAsync((txn) => task(txn));
 }
 
 /** Test/reset helper: drops the cached connection handle. */

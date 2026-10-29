@@ -8,11 +8,11 @@ export interface RoutineCompletion {
   id: string;
   routineId: string;
   date: ISODateString;
-  /** True when every non-skipped step was done. */
+  /** True when the run reached the end with at least one step actually done. */
   completed: boolean;
   completedSteps: number;
   totalSteps: number;
-  /** Actual wall-clock duration in seconds. */
+  /** Active duration in seconds (time spent paused is not counted). */
   durationInSeconds: number;
   startedAt: ISODateTimeString;
   completedAt: ISODateTimeString;

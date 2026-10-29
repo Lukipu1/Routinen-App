@@ -25,4 +25,10 @@ export interface RoutineExecution {
   stepStartedAt: ISODateTimeString | null;
   /** Seconds already spent on the current step before the latest resume. */
   accumulatedStepSeconds: number;
+  /**
+   * Seconds actively spent on steps that are already handled (completed or
+   * skipped). Pauses are excluded, so the recorded duration reflects the time
+   * the routine really took, not how long the app sat in the background.
+   */
+  activeSeconds: number;
 }

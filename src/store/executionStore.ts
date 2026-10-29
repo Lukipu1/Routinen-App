@@ -146,7 +146,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => {
         const { routine, execution } = get();
         if (!routine || !execution) return;
         const now = new Date();
-        await apply(routine, engine.addStepTime(execution, seconds, now), now);
+        await apply(routine, engine.addStepTime(routine, execution, seconds, now), now);
       }),
 
     abandon: () =>

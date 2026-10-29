@@ -18,6 +18,7 @@ async function resetStores(): Promise<void> {
     overrides: [],
     completions: [],
     todayExecutions: [],
+    dayPlans: {},
   });
   useExecutionStore.getState().clear();
 }
@@ -168,6 +169,7 @@ describe('app store lifecycle', () => {
       status: 'paused',
       stepStartedAt: null,
       accumulatedStepSeconds: 30,
+      activeSeconds: 0,
     });
     useAppStore.setState({ today: '2000-01-01' }); // force a rollover
 

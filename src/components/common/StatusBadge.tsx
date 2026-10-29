@@ -17,15 +17,22 @@ interface StatusConfig {
 const STATUS_CONFIG: Record<TimelineStatus, StatusConfig> = {
   planned: { label: 'Geplant', colorToken: 'secondaryText', icon: 'clock' },
   ready: { label: 'Jetzt', colorToken: 'accent', icon: 'play' },
+  overdue: { label: 'Überfällig', colorToken: 'warning', icon: 'clock' },
   active: { label: 'Läuft', colorToken: 'accent', icon: 'play' },
   paused: { label: 'Pausiert', colorToken: 'warning', icon: 'pause' },
   completed: { label: 'Erledigt', colorToken: 'success', icon: 'check' },
-  skipped: { label: 'Übersprungen', colorToken: 'tertiaryText', icon: 'skip' },
+  abandoned: { label: 'Abgebrochen', colorToken: 'secondaryText', icon: 'close' },
+  skipped: { label: 'Übersprungen', colorToken: 'secondaryText', icon: 'skip' },
   missed: { label: 'Verpasst', colorToken: 'secondaryText', icon: 'minus' },
 };
 
 interface StatusBadgeProps {
   status: TimelineStatus;
+}
+
+/** German label for a timeline status (for accessibility announcements). */
+export function statusLabel(status: TimelineStatus): string {
+  return STATUS_CONFIG[status].label;
 }
 
 export function StatusBadge({ status }: StatusBadgeProps): React.ReactElement {

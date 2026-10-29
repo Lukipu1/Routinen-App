@@ -17,7 +17,7 @@ interface TimelineItemProps {
   isLast?: boolean;
 }
 
-const DIMMED = new Set(['completed', 'skipped', 'missed']);
+const DIMMED = new Set(['completed', 'abandoned', 'skipped', 'missed']);
 
 /** One entry in the vertical day timeline. */
 export function TimelineItem({
@@ -33,10 +33,12 @@ export function TimelineItem({
   const nodeColor =
     status === 'completed'
       ? theme.colors.success
-      : status === 'skipped' || status === 'missed'
+      : status === 'skipped' || status === 'missed' || status === 'abandoned'
         ? theme.colors.tertiaryText
-        : color;
-  const isActive = status === 'active' || status === 'ready';
+        : status === 'overdue'
+          ? theme.colors.warning
+          : color;
+  const isActive = status === 'active' || status === 'ready' || status === 'overdue';
 
   return (
     <View style={styles.row}>

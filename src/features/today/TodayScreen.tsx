@@ -24,10 +24,12 @@ import { PlannedActionsSheet } from './PlannedActionsSheet';
 function DayProgressCard({
   completed,
   total,
+  skipped,
   fraction,
 }: {
   completed: number;
   total: number;
+  skipped: number;
   fraction: number;
 }): React.ReactElement {
   return (
@@ -39,6 +41,7 @@ function DayProgressCard({
         <AppText variant="headline">Tagesfortschritt</AppText>
         <AppText variant="callout" color="secondaryText">
           {completed} von {total} {pluralize(total, 'Routine', 'Routinen')} erledigt
+          {skipped > 0 ? ` · ${skipped} übersprungen` : ''}
         </AppText>
       </View>
     </Card>
@@ -81,6 +84,7 @@ export function TodayScreen(): React.ReactElement {
             <DayProgressCard
               completed={progress.completed}
               total={progress.total}
+              skipped={progress.skipped}
               fraction={progress.fraction}
             />
 

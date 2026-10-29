@@ -61,6 +61,7 @@ export interface ExecutionRow {
   status: string;
   step_started_at: string | null;
   accumulated_step_seconds: number;
+  active_seconds: number;
 }
 
 export interface CompletionRow {
@@ -195,6 +196,7 @@ export function rowToExecution(row: ExecutionRow): RoutineExecution {
     status: row.status as ExecutionStatus,
     stepStartedAt: row.step_started_at,
     accumulatedStepSeconds: row.accumulated_step_seconds,
+    activeSeconds: row.active_seconds ?? 0,
   };
 }
 

@@ -47,7 +47,15 @@ export function PlannedActionsSheet({
   const accent = resolveRoutineColor(routine.color);
   const isDone = status === 'completed';
   const isSkipped = status === 'skipped';
+  const isAbandoned = status === 'abandoned';
   const isRunning = status === 'active' || status === 'paused';
+  const startLabel = isRunning
+    ? 'Fortsetzen'
+    : isAbandoned
+      ? 'Erneut starten'
+      : status === 'missed' || status === 'overdue'
+        ? 'Nachholen'
+        : 'Starten';
 
   const applyMoveToday = async (): Promise<void> => {
     await moveForToday(routine.id, moveTime);
@@ -89,7 +97,7 @@ export function PlannedActionsSheet({
           <>
             {!isDone ? (
               <PrimaryButton
-                title={isRunning ? 'Fortsetzen' : status === 'missed' ? 'Nachholen' : 'Starten'}
+                title={startLabel}
                 iconName="play"
                 onPress={() => onStart(planned)}
                 accentColor={accent}
@@ -105,7 +113,7 @@ export function PlannedActionsSheet({
                 }}
               />
             ) : null}
-            {!isDone ? (
+            {!isDone && !isAbandoned ? (
               <SecondaryButton
                 title={isSkipped ? 'Wieder einplanen' : 'Für heute überspringen'}
                 iconName={isSkipped ? 'check' : 'skip'}

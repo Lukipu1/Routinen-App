@@ -26,7 +26,7 @@ function override(routineId: string, patch: Partial<PlanOverride>): PlanOverride
 
 describe('buildPlannedRoutines', () => {
   it('marks a due routine as ready and a later one as planned', () => {
-    const due = makeRoutine({ id: 'a', schedule: { startTime: '07:00' } });
+    const due = makeRoutine({ id: 'a', schedule: { startTime: '08:30' } });
     const later = makeRoutine({ id: 'b', schedule: { startTime: '12:00' } });
     const planned = buildPlannedRoutines({
       routines: [due, later],
@@ -165,6 +165,70 @@ describe('computeDayProgress', () => {
       now: NOW,
     });
     const progress = computeDayProgress(planned);
-    expect(progress).toEqual({ completed: 1, total: 2, fraction: 0.5 });
+    expect(progress).toEqual({ completed: 1, total: 2, skipped: 0, fraction: 0.5 });
+  });
+
+  it('leaves routines skipped for the day out of the total', () => {
+    const a = makeRoutine({ id: 'a' });
+    const b = makeRoutine({ id: 'b' });
+    const planned = buildPlannedRoutines({
+      routines: [a, b],
+      dateISO: TODAY,
+      overrides: [override('b', { skipped: true })],
+      executions: [],
+      completions: [makeCompletion({ routineId: 'a', date: TODAY, completed: true })],
+      now: NOW,
+    });
+    expect(computeDayProgress(planned)).toEqual({ completed: 1, total: 1, skipped: 1, fraction: 1 });
+  });
+});
+
+describe('late-day statuses', () => {
+  const LATE = new Date(2026, 6, 22, 22, 0, 0); // 22:00 today
+
+  it('turns a routine overdue once its slot plus grace has passed', () => {
+    const morning = makeRoutine({ id: 'm', schedule: { startTime: '07:00' }, estimatedDuration: 600 });
+    const evening = makeRoutine({ id: 'e', schedule: { startTime: '21:30' }, estimatedDuration: 600 });
+    const planned = buildPlannedRoutines({
+      routines: [morning, evening],
+      dateISO: TODAY,
+      overrides: [],
+      executions: [],
+      completions: [],
+      now: LATE,
+    });
+    expect(planned.find((p) => p.routine.id === 'm')?.status).toBe('overdue');
+    expect(planned.find((p) => p.routine.id === 'e')?.status).toBe('ready');
+    // The due one wins over the overdue one.
+    expect(selectNextRoutine(planned)?.routine.id).toBe('e');
+  });
+
+  it('suggests the most recent overdue routine when nothing is due', () => {
+    const morning = makeRoutine({ id: 'm', schedule: { startTime: '07:00' } });
+    const noon = makeRoutine({ id: 'n', schedule: { startTime: '12:00' } });
+    const planned = buildPlannedRoutines({
+      routines: [morning, noon],
+      dateISO: TODAY,
+      overrides: [],
+      executions: [],
+      completions: [],
+      now: LATE,
+    });
+    expect(planned.map((p) => p.status)).toEqual(['overdue', 'overdue']);
+    expect(selectNextRoutine(planned)?.routine.id).toBe('n');
+  });
+
+  it('shows an ended run as abandoned, not skipped', () => {
+    const routine = makeRoutine({ id: 'a' });
+    const planned = buildPlannedRoutines({
+      routines: [routine],
+      dateISO: TODAY,
+      overrides: [],
+      executions: [makeExecution({ routineId: 'a', scheduledDate: TODAY, status: 'abandoned' })],
+      completions: [makeCompletion({ routineId: 'a', date: TODAY, completed: false })],
+      now: NOW,
+    });
+    expect(planned[0]?.status).toBe('abandoned');
+    expect(computeDayProgress(planned)).toMatchObject({ completed: 0, total: 1 });
   });
 });

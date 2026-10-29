@@ -102,7 +102,27 @@ interface Migration {
   sql: string;
 }
 
-const MIGRATIONS: readonly Migration[] = [{ version: 1, sql: V1_SQL }];
+/**
+ * V2: active (non-paused) seconds per run, and a per-day snapshot of which
+ * routines were required. Statistics read past days from the snapshot, so
+ * editing a schedule or reactivating a routine no longer rewrites history.
+ */
+const V2_SQL = `
+ALTER TABLE executions ADD COLUMN active_seconds REAL NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS day_plans (
+  date TEXT NOT NULL,
+  routine_id TEXT NOT NULL,
+  PRIMARY KEY (date, routine_id),
+  FOREIGN KEY (routine_id) REFERENCES routines (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_day_plans_date ON day_plans (date);
+`;
+
+const MIGRATIONS: readonly Migration[] = [
+  { version: 1, sql: V1_SQL },
+  { version: 2, sql: V2_SQL },
+];
 
 /** The schema version a freshly migrated database ends up at. */
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

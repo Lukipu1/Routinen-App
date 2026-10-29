@@ -30,7 +30,7 @@ import { summariseWeekdays } from '../../constants/weekdays';
 import { ROUTINE_CATEGORIES } from '../../types/category';
 import {
   addStep,
-  createEmptyStepDraft,
+  createEmptyDraft,
   draftFromRoutine,
   duplicateStep,
   estimateDuration,
@@ -68,26 +68,7 @@ export function RoutineEditorScreen(): React.ReactElement {
       const template = findTemplate(params.templateKey);
       if (template) return templateToDraft(template);
     }
-    return {
-      id: null,
-      title: '',
-      description: '',
-      icon: 'sunrise',
-      color: 'blue',
-      category: 'personal',
-      steps: [createEmptyStepDraft()],
-      schedule: {
-        enabled: true,
-        weekdays: [1, 2, 3, 4, 5],
-        startTime: '07:00',
-        flexible: false,
-        timeWindow: null,
-        startDate: new Date().toISOString().slice(0, 10),
-        endDate: null,
-      },
-      reminder: { enabled: false, minutesBefore: 10, secondReminderMinutes: null },
-      isActive: true,
-    };
+    return createEmptyDraft();
   });
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);

@@ -16,7 +16,13 @@ interface Interval {
 
 function toInterval(item: PlannedRoutine): Interval | null {
   if (item.startTime === null) return null;
-  if (item.status === 'completed' || item.status === 'skipped' || item.status === 'missed') {
+  // Settled routines cannot clash any more; overdue ones still can.
+  if (
+    item.status === 'completed' ||
+    item.status === 'abandoned' ||
+    item.status === 'skipped' ||
+    item.status === 'missed'
+  ) {
     return null;
   }
   const start = timeToMinutes(item.startTime);

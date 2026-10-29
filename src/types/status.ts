@@ -12,17 +12,21 @@ export type ExecutionStatus = 'active' | 'paused' | 'completed' | 'abandoned';
  * schedule, overrides, executions and completions.
  * - planned: scheduled later today, not yet due
  * - ready: due now / next up
+ * - overdue: due earlier today and well past its slot, still doable ("Nachholen")
  * - active: in progress
  * - paused: started but paused
  * - completed: done for the day
+ * - abandoned: a run was started and ended early (counts as not done)
  * - skipped: intentionally skipped / paused for the day (not a failure)
- * - missed: its time passed without completion
+ * - missed: its day passed without completion
  */
 export type TimelineStatus =
   | 'planned'
   | 'ready'
+  | 'overdue'
   | 'active'
   | 'paused'
   | 'completed'
+  | 'abandoned'
   | 'skipped'
   | 'missed';

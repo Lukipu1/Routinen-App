@@ -5,3 +5,4 @@ export * from './executionsRepository';
 export * from './completionsRepository';
 export * from './overridesRepository';
 export * from './metaRepository';
+export * from './dayPlansRepository';

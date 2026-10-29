@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import * as db from '../database';
+import type { DayPlanIndex } from '../database/dayPlansRepository';
 import { buildSampleRoutines } from '../data/seed';
 import {
   abandonExecution,
@@ -14,6 +15,7 @@ import {
   pauseRoutineForDay,
   skipRoutineForDay,
 } from '../features/planner/overrides';
+import { requiredRoutineIdsFromSchedule } from '../features/statistics/stats';
 import {
   cancelAllReminders,
   cancelRoutineReminders,
@@ -38,6 +40,8 @@ interface AppState {
   overrides: PlanOverride[];
   completions: RoutineCompletion[];
   todayExecutions: RoutineExecution[];
+  /** Per-day snapshots of required routines; statistics judge past days by these. */
+  dayPlans: DayPlanIndex;
 
   initialize: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -106,6 +110,20 @@ async function insertSamples(excludeTemplateKeys: readonly string[]): Promise<vo
   await db.setMeta(db.META_KEYS.sampleDataSeeded, '1');
 }
 
+/**
+ * Freezes today's set of required routines. Statistics read past days from
+ * these snapshots, so later schedule edits cannot rewrite what was expected
+ * on a day that is already over.
+ */
+async function snapshotToday(): Promise<void> {
+  const { routines, overrides, today, dayPlans } = useAppStore.getState();
+  const required = [...requiredRoutineIdsFromSchedule(routines, overrides, today)].sort();
+  const previous = dayPlans[today] ?? [];
+  if (previous.length === required.length && previous.every((id, i) => id === required[i])) return;
+  await db.replaceDayPlan(today, required);
+  useAppStore.setState({ dayPlans: { ...useAppStore.getState().dayPlans, [today]: required } });
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   initialized: false,
   loading: false,
@@ -115,6 +133,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   overrides: [],
   completions: [],
   todayExecutions: [],
+  dayPlans: {},
 
   initialize: async () => {
     if (get().initialized || get().loading) return;
@@ -146,13 +165,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   refresh: async () => {
     const today = todayISO();
-    const [routines, overrides, completions, todayExecutions] = await Promise.all([
+    const [routines, overrides, completions, todayExecutions, dayPlans] = await Promise.all([
       db.getAllRoutines(),
       db.getAllOverrides(),
       db.getAllCompletions(),
       db.getExecutionsForDate(today),
+      db.getAllDayPlans(),
     ]);
-    set({ today, routines, overrides, completions, todayExecutions });
+    set({ today, routines, overrides, completions, todayExecutions, dayPlans });
+    await snapshotToday();
   },
 
   ensureToday: async () => {
@@ -178,6 +199,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         ? get().routines.map((r) => (r.id === routine.id ? routine : r))
         : [...get().routines, routine];
     set({ routines });
+    await snapshotToday();
   },
 
   deleteRoutine: async (id) => {
@@ -188,6 +210,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       overrides: get().overrides.filter((o) => o.routineId !== id),
       completions: get().completions.filter((c) => c.routineId !== id),
       todayExecutions: get().todayExecutions.filter((e) => e.routineId !== id),
+      dayPlans: Object.fromEntries(
+        Object.entries(get().dayPlans).map(([date, ids]) => [date, ids.filter((r) => r !== id)]),
+      ),
     });
   },
 
@@ -231,6 +256,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const changed = findOverride(next, routineId, today);
     if (changed) await db.saveOverride(changed);
     set({ overrides: next });
+    await snapshotToday();
   },
 
   pauseRoutineForToday: async (routineId, paused = true) => {
@@ -239,6 +265,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const changed = findOverride(next, routineId, today);
     if (changed) await db.saveOverride(changed);
     set({ overrides: next });
+    await snapshotToday();
   },
 
   addRoutineForToday: async (routineId, startTime = null) => {
@@ -247,6 +274,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const changed = findOverride(next, routineId, today);
     if (changed) await db.saveOverride(changed);
     set({ overrides: next });
+    await snapshotToday();
   },
 
   applyExecutionUpdate: async (execution) => {
@@ -277,6 +305,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearAllData: async () => {
     await db.clearAllData();
     await cancelAllReminders();
-    set({ routines: [], overrides: [], completions: [], todayExecutions: [] });
+    set({ routines: [], overrides: [], completions: [], todayExecutions: [], dayPlans: {} });
   },
 }));

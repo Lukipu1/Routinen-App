@@ -19,10 +19,6 @@ export function currentStep(
   return routine.steps[execution.currentStepIndex];
 }
 
-function isTimed(step: RoutineStep | undefined): boolean {
-  return step !== undefined && step.durationInSeconds !== null;
-}
-
 /** Seconds spent on the current step, including time before the latest resume. */
 export function stepElapsedSeconds(execution: RoutineExecution, now: Date): number {
   const base = execution.accumulatedStepSeconds;
@@ -74,8 +70,18 @@ export function remainingTotalSeconds(
   return Math.round(total);
 }
 
-function startStepAt(step: RoutineStep | undefined, now: Date): string | null {
-  return isTimed(step) ? nowISO(now) : null;
+/**
+ * Timestamp to start the current step's clock at. Every step is timed for
+ * bookkeeping (so the recorded duration covers check-off steps too); only the
+ * countdown UI distinguishes timed from untimed steps.
+ */
+function startStepAt(execution: Pick<RoutineExecution, 'status'>, now: Date): string | null {
+  return execution.status === 'active' ? nowISO(now) : null;
+}
+
+/** Total active seconds including the current step so far. */
+function activeSecondsSoFar(execution: RoutineExecution, now: Date): number {
+  return execution.activeSeconds + stepElapsedSeconds(execution, now);
 }
 
 /** Creates a fresh execution positioned at the first step. */
@@ -84,7 +90,6 @@ export function startExecution(
   dateISO: ISODateString,
   now: Date,
 ): RoutineExecution {
-  const firstStep = routine.steps[0];
   return {
     id: generateId(),
     routineId: routine.id,
@@ -95,16 +100,19 @@ export function startExecution(
     completedStepIds: [],
     skippedStepIds: [],
     status: 'active',
-    stepStartedAt: startStepAt(firstStep, now),
+    stepStartedAt: nowISO(now),
     accumulatedStepSeconds: 0,
+    activeSeconds: 0,
   };
 }
 
+/** Moves to the next step, banking the current step's active time. */
 function advance(
   execution: RoutineExecution,
   routine: Routine,
   now: Date,
 ): RoutineExecution {
+  const activeSeconds = activeSecondsSoFar(execution, now);
   const nextIndex = execution.currentStepIndex + 1;
   if (nextIndex >= routine.steps.length) {
     return {
@@ -114,13 +122,16 @@ function advance(
       completedAt: nowISO(now),
       stepStartedAt: null,
       accumulatedStepSeconds: 0,
+      activeSeconds,
     };
   }
   return {
     ...execution,
     currentStepIndex: nextIndex,
-    stepStartedAt: startStepAt(routine.steps[nextIndex], now),
+    // A step completed while paused stays paused: no clock starts.
+    stepStartedAt: startStepAt(execution, now),
     accumulatedStepSeconds: 0,
+    activeSeconds,
   };
 }
 
@@ -169,42 +180,56 @@ export function pauseExecution(execution: RoutineExecution, now: Date): RoutineE
   };
 }
 
-/** Resumes a paused run, restarting the current step's timer if it is timed. */
+/** Resumes a paused run, restarting the current step's clock. */
 export function resumeExecution(
   routine: Routine,
   execution: RoutineExecution,
   now: Date,
 ): RoutineExecution {
   if (execution.status !== 'paused') return execution;
+  if (!currentStep(routine, execution)) return execution;
   return {
     ...execution,
     status: 'active',
-    stepStartedAt: startStepAt(currentStep(routine, execution), now),
+    stepStartedAt: nowISO(now),
   };
 }
 
-/** Adds extra time to the current step by rewinding its elapsed timer. */
+/**
+ * Adds extra time to the current timed step by rewinding its elapsed timer.
+ * Elapsed time is first capped at the step's duration, so "+1 Minute" always
+ * grants a full minute even after the step has overrun.
+ */
 export function addStepTime(
+  routine: Routine,
   execution: RoutineExecution,
   seconds: number,
   now: Date,
 ): RoutineExecution {
+  const step = currentStep(routine, execution);
   const elapsed = stepElapsedSeconds(execution, now);
-  const newAccumulated = Math.max(0, elapsed - seconds);
+  const capped = step?.durationInSeconds != null ? Math.min(elapsed, step.durationInSeconds) : elapsed;
+  // Time already spent stays banked as active time even though the step
+  // clock is rewound; otherwise an overrun would vanish from the duration.
+  const overrun = Math.max(0, elapsed - capped);
   return {
     ...execution,
-    accumulatedStepSeconds: newAccumulated,
-    stepStartedAt: execution.status === 'active' ? nowISO(now) : null,
+    accumulatedStepSeconds: Math.max(0, capped - seconds),
+    stepStartedAt: startStepAt(execution, now),
+    activeSeconds: execution.activeSeconds + overrun,
   };
 }
 
-/** Ends a run early. */
+/** Ends a run early, banking the time spent on the current step. */
 export function abandonExecution(execution: RoutineExecution, now: Date): RoutineExecution {
+  if (execution.status === 'completed' || execution.status === 'abandoned') return execution;
   return {
     ...execution,
     status: 'abandoned',
     completedAt: nowISO(now),
     stepStartedAt: null,
+    accumulatedStepSeconds: 0,
+    activeSeconds: activeSecondsSoFar(execution, now),
   };
 }
 
@@ -240,6 +265,7 @@ export function reconcileExecution(
       completedAt: nowISO(now),
       stepStartedAt: null,
       accumulatedStepSeconds: 0,
+      activeSeconds: activeSecondsSoFar(execution, now),
     };
   }
 
@@ -254,9 +280,9 @@ export function reconcileExecution(
     completedStepIds,
     skippedStepIds,
     currentStepIndex: nextIndex,
-    stepStartedAt:
-      execution.status === 'active' ? startStepAt(routine.steps[nextIndex], now) : null,
+    stepStartedAt: startStepAt(execution, now),
     accumulatedStepSeconds: 0,
+    activeSeconds: activeSecondsSoFar(execution, now),
   };
 }
 
@@ -278,23 +304,25 @@ export function isResumableRun(
   return now.getTime() - new Date(execution.startedAt).getTime() < RESUME_GRACE_MS;
 }
 
-/** Builds the completion record summarising a finished or abandoned run. */
+/**
+ * Builds the completion record summarising a finished or abandoned run.
+ * A run only counts as completed when it reached the end *and* at least one
+ * step was actually done — skipping everything is not doing the routine.
+ */
 export function buildCompletion(
   routine: Routine,
   execution: RoutineExecution,
   now: Date,
 ): RoutineCompletion {
   const completedAt = execution.completedAt ?? nowISO(now);
-  const durationMs =
-    new Date(completedAt).getTime() - new Date(execution.startedAt).getTime();
   return {
     id: generateId(),
     routineId: routine.id,
     date: execution.scheduledDate,
-    completed: execution.status === 'completed',
+    completed: execution.status === 'completed' && execution.completedStepIds.length > 0,
     completedSteps: execution.completedStepIds.length,
     totalSteps: routine.steps.length,
-    durationInSeconds: Math.max(0, Math.round(durationMs / 1000)),
+    durationInSeconds: Math.max(0, Math.round(execution.activeSeconds)),
     startedAt: execution.startedAt,
     completedAt,
   };

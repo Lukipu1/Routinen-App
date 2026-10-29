@@ -106,5 +106,6 @@ export function makeExecution(overrides: Partial<RoutineExecution> = {}): Routin
     status: overrides.status ?? 'active',
     stepStartedAt: overrides.stepStartedAt ?? null,
     accumulatedStepSeconds: overrides.accumulatedStepSeconds ?? 0,
+    activeSeconds: overrides.activeSeconds ?? 0,
   };
 }

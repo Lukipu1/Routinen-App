@@ -64,6 +64,7 @@ export function ExecutionScreen(): React.ReactElement {
     return (
       <SuccessView
         accent={resolveRoutineColor(routine.color)}
+        completed={finished.completed}
         durationSeconds={finished.durationInSeconds}
         completedSteps={finished.completedSteps}
         totalSteps={finished.totalSteps}
@@ -184,8 +185,10 @@ export function ExecutionScreen(): React.ReactElement {
   );
 }
 
+/** End-of-run screen: a celebration when done, a calm summary when ended early. */
 function SuccessView({
   accent,
+  completed,
   durationSeconds,
   completedSteps,
   totalSteps,
@@ -193,6 +196,7 @@ function SuccessView({
   onDone,
 }: {
   accent: string;
+  completed: boolean;
   durationSeconds: number;
   completedSteps: number;
   totalSteps: number;
@@ -205,21 +209,28 @@ function SuccessView({
     scale.value = withSpring(1, { damping: 10, stiffness: 120 });
   }, [scale]);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const iconBackground = completed ? accent : theme.colors.fillStrong;
+  const iconColor = completed ? theme.colors.onAccent : theme.colors.secondaryText;
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: theme.colors.background }]}>
       <View style={styles.successBody}>
-        <Animated.View style={[styles.successIcon, { backgroundColor: accent }, animatedStyle]}>
-          <Icon name="check" size={64} color={theme.colors.onAccent} />
+        <Animated.View style={[styles.successIcon, { backgroundColor: iconBackground }, animatedStyle]}>
+          <Icon name={completed ? 'check' : 'pause'} size={64} color={iconColor} />
         </Animated.View>
         <Animated.View entering={FadeIn.delay(150)} style={styles.successText}>
           <AppText variant="largeTitle" center>
-            Geschafft!
+            {completed ? 'Geschafft!' : 'Routine beendet'}
           </AppText>
           <AppText variant="body" color="secondaryText" center>
             {formatDuration(durationSeconds)} · {completedSteps} von {totalSteps} Schritten
             {skippedSteps > 0 ? ` · ${skippedSteps} übersprungen` : ''}
           </AppText>
+          {!completed ? (
+            <AppText variant="callout" color="secondaryText" center>
+              Du kannst die Routine heute jederzeit erneut starten.
+            </AppText>
+          ) : null}
         </Animated.View>
       </View>
       <View style={styles.controls}>

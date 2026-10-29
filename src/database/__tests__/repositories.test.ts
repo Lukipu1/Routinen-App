@@ -159,13 +159,14 @@ describe('executions', () => {
     await db.saveRoutine(makeRoutine({ id: 'r1' }));
     const run = makeExecution({ id: 'e1', routineId: 'r1', scheduledDate: '2026-07-21', status: 'paused' });
     await db.saveExecution(run);
-    await db.saveExecution({ ...run, currentStepIndex: 1 });
+    await db.saveExecution({ ...run, currentStepIndex: 1, activeSeconds: 42.5 });
     await db.saveExecution(makeExecution({ id: 'e2', routineId: 'r1', scheduledDate: DATE, status: 'completed' }));
 
     expect(await count('executions')).toBe(2);
     const live = await db.getLiveExecutions();
     expect(live.map((e) => e.id)).toEqual(['e1']);
     expect(live[0]?.currentStepIndex).toBe(1);
+    expect(live[0]?.activeSeconds).toBe(42.5);
     expect(await db.getExecutionsForDate(DATE)).toHaveLength(1);
   });
 
@@ -175,6 +176,21 @@ describe('executions', () => {
     await db.saveExecution(makeExecution({ id: 'done', routineId: 'r1', scheduledDate: DATE, status: 'completed' }));
     await db.clearLiveExecutionsForRoutineDate('r1', DATE);
     expect((await db.getExecutionsForDate(DATE)).map((e) => e.id)).toEqual(['done']);
+  });
+});
+
+describe('day plans', () => {
+  it('replaces one day without touching other days and cascades on delete', async () => {
+    await db.saveRoutine(makeRoutine({ id: 'r1' }));
+    await db.saveRoutine(makeRoutine({ id: 'r2' }));
+    await db.replaceDayPlan('2026-07-21', ['r1', 'r2']);
+    await db.replaceDayPlan(DATE, ['r1']);
+    await db.replaceDayPlan(DATE, ['r2', 'r2']);
+
+    expect(await db.getAllDayPlans()).toEqual({ '2026-07-21': ['r1', 'r2'], [DATE]: ['r2'] });
+
+    await db.deleteRoutine('r2');
+    expect(await db.getAllDayPlans()).toEqual({ '2026-07-21': ['r1'] });
   });
 });
 

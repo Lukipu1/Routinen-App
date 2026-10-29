@@ -9,8 +9,8 @@ export async function saveExecution(execution: RoutineExecution): Promise<void> 
     `INSERT INTO executions (
       id, routine_id, scheduled_date, started_at, completed_at,
       current_step_index, completed_step_ids, skipped_step_ids,
-      status, step_started_at, accumulated_step_seconds
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      status, step_started_at, accumulated_step_seconds, active_seconds
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       completed_at = excluded.completed_at,
       current_step_index = excluded.current_step_index,
@@ -18,7 +18,8 @@ export async function saveExecution(execution: RoutineExecution): Promise<void> 
       skipped_step_ids = excluded.skipped_step_ids,
       status = excluded.status,
       step_started_at = excluded.step_started_at,
-      accumulated_step_seconds = excluded.accumulated_step_seconds;`,
+      accumulated_step_seconds = excluded.accumulated_step_seconds,
+      active_seconds = excluded.active_seconds;`,
     execution.id,
     execution.routineId,
     execution.scheduledDate,
@@ -30,6 +31,7 @@ export async function saveExecution(execution: RoutineExecution): Promise<void> 
     execution.status,
     execution.stepStartedAt,
     execution.accumulatedStepSeconds,
+    execution.activeSeconds,
   );
 }
 

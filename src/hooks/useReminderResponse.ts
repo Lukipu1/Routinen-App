@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 
 import type { NotificationResponse } from 'expo-notifications';
 
@@ -21,7 +22,9 @@ export function useReminderResponse(enabled: boolean): void {
   const handled = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    // Local notifications are not available on web; the module throws
+    // synchronously there rather than rejecting.
+    if (!enabled || Platform.OS === 'web') return;
 
     const handle = async (response: NotificationResponse): Promise<void> => {
       const id = response.notification.request.identifier;
@@ -57,12 +60,19 @@ export function useReminderResponse(enabled: boolean): void {
       router.push('/run');
     };
 
-    const subscription = addNotificationResponseListener((response) => {
-      void handle(response);
-    });
-    void getLastNotificationResponse().then((response) => {
-      if (response) void handle(response);
-    });
-    return () => subscription.remove();
+    let subscription: { remove: () => void } | null = null;
+    try {
+      subscription = addNotificationResponseListener((response) => {
+        void handle(response);
+      });
+      void getLastNotificationResponse()
+        .then((response) => {
+          if (response) void handle(response);
+        })
+        .catch(() => undefined);
+    } catch {
+      // Notifications unavailable on this platform; nothing to wire up.
+    }
+    return () => subscription?.remove();
   }, [enabled, router]);
 }

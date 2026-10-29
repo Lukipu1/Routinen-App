@@ -169,5 +169,16 @@ export function payloadFromResponse(
   return { kind: data.kind, routineId: data.routineId, dateISO: data.dateISO };
 }
 
-export const addNotificationResponseListener = Notifications.addNotificationResponseReceivedListener;
-export const getLastNotificationResponse = Notifications.getLastNotificationResponseAsync;
+/**
+ * Thin wrappers so the native module's methods are only touched when called:
+ * on web, merely reading a missing method off the module throws.
+ */
+export function addNotificationResponseListener(
+  listener: (response: Notifications.NotificationResponse) => void,
+): { remove: () => void } {
+  return Notifications.addNotificationResponseReceivedListener(listener);
+}
+
+export function getLastNotificationResponse(): Promise<Notifications.NotificationResponse | null> {
+  return Notifications.getLastNotificationResponseAsync();
+}

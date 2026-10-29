@@ -1,21 +1,23 @@
 name: Deploy web to GitHub Pages
 
+# Builds the static web app and pushes it to the `gh-pages` branch, which
+# GitHub Pages serves at https://<owner>.github.io/<repository>/ ("Deploy from
+# a branch" source). The branch is created automatically on the first run.
+
 on:
   push:
     branches: [main, claude/routines-app-scaffold-nzchih]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -29,25 +31,15 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Enable GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
       - name: Build static web app
         # The site lives under /<repository>/ on GitHub Pages.
         run: node scripts/build-web.mjs --base "/${{ github.event.repository.name }}"
 
-      - uses: actions/upload-pages-artifact@v3
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: 'deploy: static web build ${{ github.sha }}'

@@ -90,6 +90,7 @@ export function RoutineEditorScreen(): React.ReactElement {
     };
   });
   const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
   const validation = useMemo(() => validateRoutineDraft(draft), [draft]);
   const accent = resolveRoutineColor(draft.color);
   const totalDuration = estimateDuration(draft.steps);
@@ -111,6 +112,7 @@ export function RoutineEditorScreen(): React.ReactElement {
   const goBack = (): void => setStep((current) => Math.max(1, current - 1));
 
   const save = async (): Promise<void> => {
+    if (saving) return;
     if (!validation.valid) {
       toast('Bitte prüfe deine Eingaben', 'error');
       if (validation.errors.title) setStep(1);
@@ -118,9 +120,17 @@ export function RoutineEditorScreen(): React.ReactElement {
       else setStep(3);
       return;
     }
-    await saveRoutine(routineFromDraft(draft));
-    toast(isEditing ? 'Routine aktualisiert' : 'Routine gespeichert', 'success');
-    router.back();
+    // Guard against a double tap creating two routines (each call would
+    // otherwise mint a fresh id).
+    setSaving(true);
+    try {
+      await saveRoutine(routineFromDraft(draft));
+      toast(isEditing ? 'Routine aktualisiert' : 'Routine gespeichert', 'success');
+      router.back();
+    } catch {
+      toast('Speichern fehlgeschlagen', 'error');
+      setSaving(false);
+    }
   };
 
   const patch = (partial: Partial<RoutineDraft>): void =>
@@ -183,7 +193,14 @@ export function RoutineEditorScreen(): React.ReactElement {
           {step < TOTAL_STEPS ? (
             <PrimaryButton title="Weiter" onPress={goNext} accentColor={accent} fullWidth={false} style={styles.grow} />
           ) : (
-            <PrimaryButton title="Routine speichern" onPress={save} accentColor={accent} fullWidth={false} style={styles.grow} />
+            <PrimaryButton
+              title="Routine speichern"
+              onPress={save}
+              loading={saving}
+              accentColor={accent}
+              fullWidth={false}
+              style={styles.grow}
+            />
           )}
         </View>
       </KeyboardAvoidingView>

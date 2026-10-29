@@ -6,8 +6,13 @@ import { findTemplate, templateToRoutine } from './templates';
  * They are flagged `isSample` so the UI can label them and the user can reset
  * or delete them freely.
  */
-export function buildSampleRoutines(now: Date = new Date()): Routine[] {
-  const templateKeys = ['morning', 'learning', 'evening'];
+export const SAMPLE_TEMPLATE_KEYS = ['morning', 'learning', 'evening'] as const;
+
+export function buildSampleRoutines(
+  now: Date = new Date(),
+  excludeTemplateKeys: readonly string[] = [],
+): Routine[] {
+  const templateKeys = SAMPLE_TEMPLATE_KEYS.filter((key) => !excludeTemplateKeys.includes(key));
   const routines: Routine[] = [];
 
   templateKeys.forEach((key, index) => {

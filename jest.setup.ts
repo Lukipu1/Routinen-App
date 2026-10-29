@@ -82,15 +82,6 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 // --- SQLite (device-only) ----------------------------------------------------
-jest.mock('expo-sqlite', () => ({
-  openDatabaseAsync: jest.fn(() =>
-    Promise.resolve({
-      execAsync: jest.fn(() => Promise.resolve()),
-      runAsync: jest.fn(() => Promise.resolve({ lastInsertRowId: 0, changes: 0 })),
-      getAllAsync: jest.fn(() => Promise.resolve([])),
-      getFirstAsync: jest.fn(() => Promise.resolve(null)),
-      withTransactionAsync: jest.fn((cb: () => Promise<void>) => cb()),
-      closeAsync: jest.fn(() => Promise.resolve()),
-    }),
-  ),
-}));
+// Backed by a real in-memory SQLite (node:sqlite) so repository and store tests
+// run their actual SQL — including foreign keys and cascades.
+jest.mock('expo-sqlite', () => require('./src/testing/sqliteFake').createExpoSqliteMock());

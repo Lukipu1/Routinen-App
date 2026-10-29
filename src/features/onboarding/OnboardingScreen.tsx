@@ -37,26 +37,34 @@ export function OnboardingScreen(): React.ReactElement {
   const toast = useToast();
   const update = useUpdatePreferences();
   const saveRoutine = useAppStore((s) => s.saveRoutine);
+  const seedSampleData = useAppStore((s) => s.seedSampleData);
   const [page, setPage] = useState(1);
   const [dayStartHour, setDayStartHour] = useState(7);
   const [templateKey, setTemplateKey] = useState('morning');
   const [notificationsAllowed, setNotificationsAllowed] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
   const finish = async (createRoutine: boolean): Promise<void> => {
-    if (createRoutine) {
-      const template = findTemplate(templateKey);
-      if (template) {
-        if (notificationsAllowed) update({ notificationsEnabled: true });
-        await saveRoutine(templateToRoutine(template));
-      }
+    if (finishing) return;
+    setFinishing(true);
+    try {
+      const template = createRoutine ? findTemplate(templateKey) : undefined;
+      if (template) await saveRoutine(templateToRoutine(template));
+      // The samples are seeded here (not at launch) so the template the user
+      // just picked is left out instead of showing up twice.
+      await seedSampleData(template ? [template.key] : []);
+      update({ onboardingCompleted: true, dayStartHour });
+      router.replace('/');
+    } finally {
+      setFinishing(false);
     }
-    update({ onboardingCompleted: true, dayStartHour });
-    router.replace('/');
   };
 
   const allowNotifications = async (): Promise<void> => {
     const granted = await requestNotificationPermission();
     setNotificationsAllowed(granted);
+    // Record the choice right away so it survives "Überspringen".
+    update({ notificationsEnabled: granted });
     toast(granted ? 'Benachrichtigungen erlaubt' : 'Ohne Benachrichtigungen', granted ? 'success' : 'default');
   };
 
@@ -173,7 +181,13 @@ export function OnboardingScreen(): React.ReactElement {
         {page < 3 ? (
           <PrimaryButton title="Weiter" onPress={() => setPage((p) => p + 1)} fullWidth={false} style={styles.grow} />
         ) : (
-          <PrimaryButton title="Routine erstellen" onPress={() => void finish(true)} fullWidth={false} style={styles.grow} />
+          <PrimaryButton
+            title="Routine erstellen"
+            onPress={() => void finish(true)}
+            loading={finishing}
+            fullWidth={false}
+            style={styles.grow}
+          />
         )}
       </View>
     </SafeAreaView>

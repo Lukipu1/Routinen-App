@@ -102,21 +102,35 @@ interface Migration {
 
 const MIGRATIONS: readonly Migration[] = [{ version: 1, sql: V1_SQL }];
 
+/** The schema version a freshly migrated database ends up at. */
+export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;
+
+export class DatabaseTooNewError extends Error {
+  constructor(found: number) {
+    super(
+      `Die Datenbank stammt aus einer neueren App-Version (Schema ${found}, erwartet ${SCHEMA_VERSION}).`,
+    );
+    this.name = 'DatabaseTooNewError';
+  }
+}
+
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
   await db.execAsync('PRAGMA foreign_keys = ON;');
 
   const versionRow = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
-  let current = versionRow?.user_version ?? 0;
+  const current = versionRow?.user_version ?? 0;
+  if (current > SCHEMA_VERSION) throw new DatabaseTooNewError(current);
 
   for (const migration of MIGRATIONS) {
     if (migration.version > current) {
-      await db.withTransactionAsync(async () => {
-        await db.execAsync(migration.sql);
+      // Schema change and version bump commit together, so a crash in between
+      // can never leave a half-applied migration that looks finished.
+      await db.withExclusiveTransactionAsync(async (txn) => {
+        await txn.execAsync(migration.sql);
+        // PRAGMA does not accept bound parameters; the version is a trusted int.
+        await txn.execAsync(`PRAGMA user_version = ${migration.version};`);
       });
-      // PRAGMA does not accept bound parameters; the version is a trusted int.
-      await db.execAsync(`PRAGMA user_version = ${migration.version};`);
-      current = migration.version;
     }
   }
 }

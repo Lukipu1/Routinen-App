@@ -208,6 +208,76 @@ export function abandonExecution(execution: RoutineExecution, now: Date): Routin
   };
 }
 
+/**
+ * Re-aligns a stored run with the routine's *current* steps. If the routine was
+ * edited while the run was paused (steps removed, reordered or inserted), the
+ * stored index may point past the end or at a different step. The handled step
+ * ids are the source of truth: the run continues at the first unhandled step,
+ * or finishes when none is left.
+ */
+export function reconcileExecution(
+  routine: Routine,
+  execution: RoutineExecution,
+  now: Date,
+): RoutineExecution {
+  if (execution.status === 'completed' || execution.status === 'abandoned') return execution;
+
+  const stepIds = new Set(routine.steps.map((step) => step.id));
+  const completedStepIds = execution.completedStepIds.filter((id) => stepIds.has(id));
+  const skippedStepIds = execution.skippedStepIds.filter(
+    (id) => stepIds.has(id) && !completedStepIds.includes(id),
+  );
+  const handled = new Set([...completedStepIds, ...skippedStepIds]);
+  const nextIndex = routine.steps.findIndex((step) => !handled.has(step.id));
+
+  if (nextIndex === -1) {
+    return {
+      ...execution,
+      completedStepIds,
+      skippedStepIds,
+      currentStepIndex: routine.steps.length,
+      status: 'completed',
+      completedAt: nowISO(now),
+      stepStartedAt: null,
+      accumulatedStepSeconds: 0,
+    };
+  }
+
+  const unchanged =
+    nextIndex === execution.currentStepIndex &&
+    completedStepIds.length === execution.completedStepIds.length &&
+    skippedStepIds.length === execution.skippedStepIds.length;
+  if (unchanged) return execution;
+
+  return {
+    ...execution,
+    completedStepIds,
+    skippedStepIds,
+    currentStepIndex: nextIndex,
+    stepStartedAt:
+      execution.status === 'active' ? startStepAt(routine.steps[nextIndex], now) : null,
+    accumulatedStepSeconds: 0,
+  };
+}
+
+/** Runs that crossed midnight less than this long ago may still be resumed. */
+export const RESUME_GRACE_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Whether a live (active/paused) run may still be picked up: it belongs to
+ * today, or it started so recently that it merely crossed midnight. Anything
+ * older is stale and gets closed as abandoned.
+ */
+export function isResumableRun(
+  execution: RoutineExecution,
+  todayISO: ISODateString,
+  now: Date,
+): boolean {
+  if (execution.status !== 'active' && execution.status !== 'paused') return false;
+  if (execution.scheduledDate === todayISO) return true;
+  return now.getTime() - new Date(execution.startedAt).getTime() < RESUME_GRACE_MS;
+}
+
 /** Builds the completion record summarising a finished or abandoned run. */
 export function buildCompletion(
   routine: Routine,

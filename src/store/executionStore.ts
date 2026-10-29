@@ -7,6 +7,7 @@ import type { ISODateString } from '../types/common';
 import type { RoutineCompletion } from '../types/completion';
 import type { RoutineExecution } from '../types/execution';
 import type { Routine } from '../types/routine';
+import { todayISO } from '../utils/datetime';
 import { useAppStore } from './appStore';
 
 interface ExecutionState {
@@ -17,7 +18,7 @@ interface ExecutionState {
 
   start: (routine: Routine, dateISO: ISODateString) => Promise<void>;
   restore: () => Promise<boolean>;
-  attach: (routine: Routine, execution: RoutineExecution) => void;
+  attach: (routine: Routine, execution: RoutineExecution) => Promise<void>;
   completeStep: () => Promise<void>;
   skipStep: () => Promise<void>;
   pause: () => Promise<void>;
@@ -27,112 +28,136 @@ interface ExecutionState {
   clear: () => void;
 }
 
+/**
+ * Actions run strictly one after another. Without this, a quick "Erledigt"
+ * followed by "Pause" could persist a paused run on top of a finished one, and
+ * a double tap would lose a step.
+ */
+let chain: Promise<unknown> = Promise.resolve();
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  const run = chain.then(task, task);
+  chain = run.catch(() => undefined);
+  return run;
+}
+
 async function persist(execution: RoutineExecution): Promise<void> {
   await useAppStore.getState().applyExecutionUpdate(execution);
 }
 
-export const useExecutionStore = create<ExecutionState>((set, get) => ({
-  routine: null,
-  execution: null,
-  finished: null,
-
-  start: async (routine, dateISO) => {
-    const now = new Date();
-    await db.clearLiveExecutionsForRoutineDate(routine.id, dateISO);
-    const execution = engine.startExecution(routine, dateISO, now);
-    await persist(execution);
-    void haptics.medium();
-    set({ routine, execution, finished: null });
-  },
-
-  restore: async () => {
-    const live = await db.getLiveExecution();
-    if (!live) return false;
-    const routine =
-      useAppStore.getState().routines.find((r) => r.id === live.routineId) ??
-      (await db.getRoutineById(live.routineId));
-    if (!routine) return false;
-    set({ routine, execution: live, finished: null });
-    return true;
-  },
-
-  attach: (routine, execution) => {
-    set({ routine, execution, finished: null });
-  },
-
-  completeStep: async () => {
-    const { routine, execution } = get();
-    if (!routine || !execution) return;
-    const now = new Date();
-    const next = engine.completeStep(routine, execution, now);
+export const useExecutionStore = create<ExecutionState>((set, get) => {
+  /** Applies a transition: show it immediately, then persist and finalize if done. */
+  async function apply(
+    routine: Routine,
+    next: RoutineExecution,
+    now: Date,
+    feedback?: () => Promise<void>,
+  ): Promise<void> {
+    set({ execution: next });
     await persist(next);
-    void haptics.success();
-    if (next.status === 'completed') {
-      await finalize(routine, next, now, set);
-    } else {
-      set({ execution: next });
+    if (feedback) void feedback();
+    if (next.status === 'completed' || next.status === 'abandoned') {
+      await finalize(routine, next, now);
     }
-  },
+  }
 
-  skipStep: async () => {
-    const { routine, execution } = get();
-    if (!routine || !execution) return;
-    const now = new Date();
-    const next = engine.skipStep(routine, execution, now);
-    await persist(next);
-    void haptics.light();
-    if (next.status === 'completed') {
-      await finalize(routine, next, now, set);
-    } else {
-      set({ execution: next });
-    }
-  },
+  async function finalize(routine: Routine, execution: RoutineExecution, now: Date): Promise<void> {
+    const completion = engine.buildCompletion(routine, execution, now);
+    await useAppStore.getState().recordCompletion(completion);
+    if (completion.completed) void haptics.success();
+    set({ execution, finished: completion });
+  }
 
-  pause: async () => {
-    const { routine, execution } = get();
-    if (!routine || !execution) return;
-    const next = engine.pauseExecution(execution, new Date());
-    await persist(next);
-    void haptics.light();
-    set({ execution: next });
-  },
+  return {
+    routine: null,
+    execution: null,
+    finished: null,
 
-  resume: async () => {
-    const { routine, execution } = get();
-    if (!routine || !execution) return;
-    const next = engine.resumeExecution(routine, execution, new Date());
-    await persist(next);
-    set({ execution: next });
-  },
+    start: (routine, dateISO) =>
+      enqueue(async () => {
+        const now = new Date();
+        await db.clearLiveExecutionsForRoutineDate(routine.id, dateISO);
+        const execution = engine.startExecution(routine, dateISO, now);
+        set({ routine, execution, finished: null });
+        await persist(execution);
+        void haptics.medium();
+      }),
 
-  addTime: async (seconds) => {
-    const { execution } = get();
-    if (!execution) return;
-    const next = engine.addStepTime(execution, seconds, new Date());
-    await persist(next);
-    set({ execution: next });
-  },
+    restore: () =>
+      enqueue(async () => {
+        const now = new Date();
+        const live = (await db.getLiveExecutions()).find((execution) =>
+          engine.isResumableRun(execution, todayISO(now), now),
+        );
+        if (!live) return false;
+        const routine =
+          useAppStore.getState().routines.find((r) => r.id === live.routineId) ??
+          (await db.getRoutineById(live.routineId));
+        if (!routine) return false;
+        set({ routine, execution: live, finished: null });
+        const reconciled = engine.reconcileExecution(routine, live, now);
+        if (reconciled !== live) await apply(routine, reconciled, now);
+        return true;
+      }),
 
-  abandon: async () => {
-    const { routine, execution } = get();
-    if (!routine || !execution) return;
-    const now = new Date();
-    const next = engine.abandonExecution(execution, now);
-    await persist(next);
-    await finalize(routine, next, now, set);
-  },
+    attach: (routine, execution) =>
+      enqueue(async () => {
+        const now = new Date();
+        set({ routine, execution, finished: null });
+        const reconciled = engine.reconcileExecution(routine, execution, now);
+        if (reconciled !== execution) await apply(routine, reconciled, now);
+      }),
 
-  clear: () => set({ routine: null, execution: null, finished: null }),
-}));
+    completeStep: () =>
+      enqueue(async () => {
+        const { routine, execution } = get();
+        if (!routine || !execution || execution.status === 'completed') return;
+        const now = new Date();
+        await apply(routine, engine.completeStep(routine, execution, now), now, haptics.success);
+      }),
 
-async function finalize(
-  routine: Routine,
-  execution: RoutineExecution,
-  now: Date,
-  set: (partial: Partial<ExecutionState>) => void,
-): Promise<void> {
-  const completion = engine.buildCompletion(routine, execution, now);
-  await useAppStore.getState().recordCompletion(completion);
-  void haptics.success();
-  set({ execution, finished: completion });
-}
+    skipStep: () =>
+      enqueue(async () => {
+        const { routine, execution } = get();
+        if (!routine || !execution || execution.status === 'completed') return;
+        const now = new Date();
+        await apply(routine, engine.skipStep(routine, execution, now), now, haptics.light);
+      }),
+
+    pause: () =>
+      enqueue(async () => {
+        const { routine, execution } = get();
+        if (!routine || !execution) return;
+        const now = new Date();
+        const next = engine.pauseExecution(execution, now);
+        if (next !== execution) await apply(routine, next, now, haptics.light);
+      }),
+
+    resume: () =>
+      enqueue(async () => {
+        const { routine, execution } = get();
+        if (!routine || !execution) return;
+        const now = new Date();
+        const next = engine.resumeExecution(routine, execution, now);
+        if (next !== execution) await apply(routine, next, now);
+      }),
+
+    addTime: (seconds) =>
+      enqueue(async () => {
+        const { routine, execution } = get();
+        if (!routine || !execution) return;
+        const now = new Date();
+        await apply(routine, engine.addStepTime(execution, seconds, now), now);
+      }),
+
+    abandon: () =>
+      enqueue(async () => {
+        const { routine, execution } = get();
+        if (!routine || !execution) return;
+        if (execution.status === 'completed' || execution.status === 'abandoned') return;
+        const now = new Date();
+        await apply(routine, engine.abandonExecution(execution, now), now);
+      }),
+
+    clear: () => set({ routine: null, execution: null, finished: null }),
+  };
+});

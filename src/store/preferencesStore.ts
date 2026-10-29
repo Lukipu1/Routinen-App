@@ -19,6 +19,17 @@ function applySideEffects(preferences: UserPreferences): void {
   setHapticsEnabled(preferences.hapticsEnabled);
 }
 
+/** Resolves once the persisted preferences have been read from storage. */
+export function waitForPreferencesHydration(): Promise<void> {
+  if (usePreferencesStore.persist.hasHydrated()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const unsubscribe = usePreferencesStore.persist.onFinishHydration(() => {
+      unsubscribe();
+      resolve();
+    });
+  });
+}
+
 export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set, get) => ({

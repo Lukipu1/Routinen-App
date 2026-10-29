@@ -38,18 +38,45 @@ export async function getRoutineById(id: string): Promise<Routine | null> {
   return rowToRoutine(row, stepRows);
 }
 
-/** Inserts or replaces a routine together with its steps, atomically. */
+/**
+ * Inserts or updates a routine together with its steps, atomically.
+ *
+ * This must be a true UPSERT: `INSERT OR REPLACE` would delete the existing
+ * row first, and with `ON DELETE CASCADE` on every child table that silently
+ * wipes the routine's completions, executions and overrides.
+ */
 export async function saveRoutine(routine: Routine): Promise<void> {
   const db = await getDatabase();
-  await db.withTransactionAsync(async () => {
-    await db.runAsync(
-      `INSERT OR REPLACE INTO routines (
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync(
+      `INSERT INTO routines (
         id, title, description, icon, color, category, estimated_duration,
         reminder_enabled, reminder_minutes_before, reminder_second,
         schedule_enabled, schedule_weekdays, schedule_start_time, schedule_flexible,
         schedule_window, schedule_start_date, schedule_end_date,
         is_active, is_sample, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (id) DO UPDATE SET
+        title = excluded.title,
+        description = excluded.description,
+        icon = excluded.icon,
+        color = excluded.color,
+        category = excluded.category,
+        estimated_duration = excluded.estimated_duration,
+        reminder_enabled = excluded.reminder_enabled,
+        reminder_minutes_before = excluded.reminder_minutes_before,
+        reminder_second = excluded.reminder_second,
+        schedule_enabled = excluded.schedule_enabled,
+        schedule_weekdays = excluded.schedule_weekdays,
+        schedule_start_time = excluded.schedule_start_time,
+        schedule_flexible = excluded.schedule_flexible,
+        schedule_window = excluded.schedule_window,
+        schedule_start_date = excluded.schedule_start_date,
+        schedule_end_date = excluded.schedule_end_date,
+        is_active = excluded.is_active,
+        is_sample = excluded.is_sample,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at;`,
       routine.id,
       routine.title,
       routine.description ?? null,
@@ -73,9 +100,9 @@ export async function saveRoutine(routine: Routine): Promise<void> {
       routine.updatedAt,
     );
 
-    await db.runAsync('DELETE FROM routine_steps WHERE routine_id = ?;', routine.id);
+    await txn.runAsync('DELETE FROM routine_steps WHERE routine_id = ?;', routine.id);
     for (const step of routine.steps) {
-      await db.runAsync(
+      await txn.runAsync(
         `INSERT INTO routine_steps (
           id, routine_id, title, note, duration, position, icon, can_skip, completion_type
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,

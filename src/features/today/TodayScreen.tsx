@@ -55,7 +55,7 @@ export function TodayScreen(): React.ReactElement {
   const startOrResume = async (item: PlannedRoutine): Promise<void> => {
     const execution = item.execution;
     if (execution && (execution.status === 'active' || execution.status === 'paused')) {
-      useExecutionStore.getState().attach(item.routine, execution);
+      await useExecutionStore.getState().attach(item.routine, execution);
     } else {
       await useExecutionStore.getState().start(item.routine, dateISO);
     }

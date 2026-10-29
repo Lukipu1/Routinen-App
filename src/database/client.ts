@@ -11,10 +11,17 @@ let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
-    dbPromise = SQLite.openDatabaseAsync(DATABASE_NAME).then(async (db) => {
-      await runMigrations(db);
-      return db;
-    });
+    dbPromise = SQLite.openDatabaseAsync(DATABASE_NAME)
+      .then(async (db) => {
+        await runMigrations(db);
+        return db;
+      })
+      .catch((error: unknown) => {
+        // Don't cache a failed open: the next call (e.g. "Erneut versuchen")
+        // should get a fresh attempt instead of the same rejection.
+        dbPromise = null;
+        throw error;
+      });
   }
   return dbPromise;
 }

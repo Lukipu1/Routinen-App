@@ -3,6 +3,11 @@ import { create } from 'zustand';
 import * as db from '../database';
 import { buildSampleRoutines } from '../data/seed';
 import {
+  abandonExecution,
+  buildCompletion,
+  isResumableRun,
+} from '../features/execution/executionLogic';
+import {
   addRoutineForDay,
   findOverride,
   moveRoutineForDay,
@@ -10,7 +15,9 @@ import {
   skipRoutineForDay,
 } from '../features/planner/overrides';
 import {
+  cancelAllReminders,
   cancelRoutineReminders,
+  rescheduleAllReminders,
   scheduleRoutineReminders,
 } from '../services/notifications';
 import type { ISODateString, TimeString } from '../types/common';
@@ -20,7 +27,7 @@ import type { PlanOverride } from '../types/planning';
 import type { Routine } from '../types/routine';
 import { nowISO, todayISO } from '../utils/datetime';
 import { generateId } from '../utils/id';
-import { usePreferencesStore } from './preferencesStore';
+import { usePreferencesStore, waitForPreferencesHydration } from './preferencesStore';
 
 interface AppState {
   initialized: boolean;
@@ -34,35 +41,69 @@ interface AppState {
 
   initialize: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** Re-syncs `today` (and closes stale runs) when the calendar day has changed. */
   ensureToday: () => Promise<void>;
-
+  /** Inserts the sample routines once; `excludeTemplateKeys` skips ones the user already chose. */
+  seedSampleData: (excludeTemplateKeys?: readonly string[]) => Promise<void>;
   saveRoutine: (routine: Routine) => Promise<void>;
   deleteRoutine: (id: string) => Promise<void>;
   duplicateRoutine: (id: string) => Promise<void>;
   toggleRoutineActive: (id: string) => Promise<void>;
-
   moveRoutineForToday: (routineId: string, startTime: TimeString | null) => Promise<void>;
   skipRoutineForToday: (routineId: string, skipped?: boolean) => Promise<void>;
   pauseRoutineForToday: (routineId: string, paused?: boolean) => Promise<void>;
   addRoutineForToday: (routineId: string, startTime?: TimeString | null) => Promise<void>;
-
   applyExecutionUpdate: (execution: RoutineExecution) => Promise<void>;
   recordCompletion: (completion: RoutineCompletion) => Promise<void>;
-
   resetSampleData: () => Promise<void>;
   clearAllData: () => Promise<void>;
 }
 
-async function notificationsEnabled(): Promise<boolean> {
+function notificationsEnabled(): boolean {
   return usePreferencesStore.getState().preferences.notificationsEnabled;
 }
 
 async function syncReminders(routine: Routine): Promise<void> {
-  if (await notificationsEnabled()) {
+  if (notificationsEnabled()) {
     await scheduleRoutineReminders(routine);
   } else {
     await cancelRoutineReminders(routine.id);
   }
+}
+
+async function resyncAllReminders(routines: Routine[]): Promise<void> {
+  if (notificationsEnabled()) {
+    await rescheduleAllReminders(routines);
+  } else {
+    await cancelAllReminders();
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unbekannter Fehler';
+}
+
+/**
+ * Closes live runs that can no longer be resumed (left open on an earlier
+ * day) so they stop lingering as "paused" forever and get a completion record
+ * for statistics.
+ */
+async function closeStaleExecutions(today: ISODateString, now: Date): Promise<void> {
+  const live = await db.getLiveExecutions();
+  for (const execution of live) {
+    if (isResumableRun(execution, today, now)) continue;
+    const abandoned = abandonExecution(execution, now);
+    await db.saveExecution(abandoned);
+    const routine = await db.getRoutineById(execution.routineId);
+    if (routine) await db.saveCompletion(buildCompletion(routine, abandoned, now));
+  }
+}
+
+async function insertSamples(excludeTemplateKeys: readonly string[]): Promise<void> {
+  for (const routine of buildSampleRoutines(new Date(), excludeTemplateKeys)) {
+    await db.saveRoutine(routine);
+  }
+  await db.setMeta(db.META_KEYS.sampleDataSeeded, '1');
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -80,15 +121,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await db.getDatabase();
-      if ((await db.countRoutines()) === 0) {
-        for (const routine of buildSampleRoutines()) {
-          await db.saveRoutine(routine);
-        }
+      await waitForPreferencesHydration();
+
+      // Fresh installs are seeded when onboarding finishes (so the template the
+      // user picks there is not duplicated). The marker makes this a one-time
+      // event: once set, deleting every routine keeps the app empty.
+      const seeded = (await db.getMeta(db.META_KEYS.sampleDataSeeded)) === '1';
+      const { onboardingCompleted } = usePreferencesStore.getState().preferences;
+      if (!seeded && onboardingCompleted) {
+        if ((await db.countRoutines()) === 0) await insertSamples([]);
+        else await db.setMeta(db.META_KEYS.sampleDataSeeded, '1');
       }
+
+      const now = new Date();
+      await closeStaleExecutions(todayISO(now), now);
       await get().refresh();
       set({ initialized: true });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Unbekannter Fehler' });
+      set({ error: errorMessage(error) });
     } finally {
       set({ loading: false });
     }
@@ -106,9 +156,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   ensureToday: async () => {
-    if (get().today !== todayISO()) {
-      await get().refresh();
-    }
+    const now = new Date();
+    const today = todayISO(now);
+    if (get().today === today) return;
+    await closeStaleExecutions(today, now);
+    await get().refresh();
+  },
+
+  seedSampleData: async (excludeTemplateKeys = []) => {
+    if ((await db.getMeta(db.META_KEYS.sampleDataSeeded)) === '1') return;
+    await insertSamples(excludeTemplateKeys);
+    await get().refresh();
   },
 
   saveRoutine: async (routine) => {
@@ -140,9 +198,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const copy: Routine = {
       ...source,
       id: generateId(),
-      title: `${source.title} Kopie`,
+      title: `${source.title} (Kopie)`,
       isSample: false,
       steps: source.steps.map((step) => ({ ...step, id: generateId() })),
+      // A copy starts fresh today; inheriting the original's start date would
+      // make every past day count as missed for it.
+      schedule: { ...source.schedule, startDate: todayISO() },
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -208,16 +269,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   resetSampleData: async () => {
     await db.clearAllData();
-    for (const routine of buildSampleRoutines()) {
-      await db.saveRoutine(routine);
-    }
-    set({ initialized: false });
+    await insertSamples([]);
     await get().refresh();
-    set({ initialized: true });
+    await resyncAllReminders(get().routines);
   },
 
   clearAllData: async () => {
     await db.clearAllData();
+    await cancelAllReminders();
     set({ routines: [], overrides: [], completions: [], todayExecutions: [] });
   },
 }));

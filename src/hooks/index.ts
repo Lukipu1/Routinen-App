@@ -8,3 +8,5 @@ export { useStatistics } from './useStatistics';
 export type { StatisticsViewModel } from './useStatistics';
 export { usePreferences, useUpdatePreferences, useReducedMotion } from './usePreferences';
 export { useAppBootstrap } from './useAppBootstrap';
+export type { BootstrapState } from './useAppBootstrap';
+export { useDayRollover } from './useDayRollover';

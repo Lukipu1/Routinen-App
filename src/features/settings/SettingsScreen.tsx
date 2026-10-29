@@ -230,7 +230,6 @@ export function SettingsScreen(): React.ReactElement {
         onConfirm={async () => {
           setConfirmClear(false);
           await clearAllData();
-          await cancelAllReminders();
           toast('Alle Daten gelöscht');
         }}
         onCancel={() => setConfirmClear(false)}
